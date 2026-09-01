@@ -52,9 +52,15 @@ SAVE_SRC="$CONFIG_DIR/Saves/wbg_roundtrip.rws"
 SAVE_DEST="$HARNESS/Fixtures/wbg_roundtrip.rws"
 
 run_phase() {
+    # --mod-overlay swaps the activated mod's ASSEMBLIES and nothing else, so a worktree's XML is
+    # not picked up by it. Languages has to be overlaid separately or the run reads the main
+    # checkout's keys — which shows up as raw "WBG_..." strings on new gizmos and is easy to
+    # misread as a broken translation rather than a stale file. --install rolls back on teardown
+    # the same way the assembly overlay does.
     "$HARNESS/Runner/run_test.sh" \
         --mod "$MOD_MAIN" \
         --mod-overlay "$WORKTREE" \
+        --install "$WORKTREE/Languages:$MOD_MAIN/Languages" \
         --mod "$WORKTREE/TestMod" \
         --no-profiler \
         "$@"

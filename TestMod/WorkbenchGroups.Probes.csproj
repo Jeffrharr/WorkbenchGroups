@@ -32,6 +32,7 @@
     <Compile Include="../Source/Probes/WbgAssertEligibilityStep.cs" Link="WbgAssertEligibilityStep.cs" />
     <Compile Include="../Source/Probes/WbgTrackGroupStep.cs" Link="WbgTrackGroupStep.cs" />
     <Compile Include="../Source/Probes/WbgFocusBenchStep.cs" Link="WbgFocusBenchStep.cs" />
+    <Compile Include="../Source/Probes/WbgClaimBenchesStep.cs" Link="WbgClaimBenchesStep.cs" />
   </ItemGroup>
 
   <ItemGroup>
