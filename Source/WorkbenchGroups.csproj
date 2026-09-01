@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net481</TargetFramework>
+    <AssemblyName>WorkbenchGroups</AssemblyName>
+    <RootNamespace>WorkbenchGroups</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <!-- RimWorld loads the DLL from the versioned Assemblies folder. -->
+    <OutputPath>../1.6/Assemblies</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <!-- Don't drag ref/dependency copies into the mod folder; RimWorld provides them. -->
+    <EnableDefaultContentItems>false</EnableDefaultContentItems>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" />
+    <!-- Reference Harmony for compiling patches, but never copy 0Harmony.dll into the mod:
+         RimWorld already provides it via brrainz.harmony, and shipping a second copy risks a
+         load-order/version conflict. ExcludeAssets="runtime" keeps the compile-time reference
+         while suppressing the runtime copy. -->
+    <PackageReference Include="Lib.Harmony" Version="2.3.*" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

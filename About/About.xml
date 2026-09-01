@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>Workbench Groups</name>
+  <author>Joof</author>
+  <packageId>joof.workbenchgroups</packageId>
+  <supportedVersions>
+    <li>1.6</li>
+  </supportedVersions>
+  <description>Link work stations together so they share one bill list, and choose how those bills are worked through.
+
+## Linking
+
+Select two or more work stations and press "Link work orders". They now share a single list of bills, so any pawn can carry out any order at whichever station is free. Stations can only be linked if they make the same things — an electric and a fueled stove link fine; a stove and a tailoring bench do not.
+
+Linking mirrors the vanilla storage-group interaction, so there is nothing new to learn.
+
+## Ordering modes
+
+- **In order** (default) — vanilla behaviour. The list is worked top-down.
+- **Round robin** — one item from each bill in turn, wrapping around. Bills visibly rotate as they are worked, so the top of the list is always what happens next.
+
+## No more overshooting
+
+Because a group's stations share their bills, several pawns could otherwise start the same "make 5" order at once and produce far more than asked. This mod reserves the count when a pawn starts work rather than when they finish, so a group makes exactly what you asked for.
+
+Q. Can I add this to an existing save?
+A. Yes. Nothing changes until you link something.
+
+Q. Can I remove it from an existing save?
+A. Yes. Every station keeps a valid bill list — the group's bills stay on the station you linked from, and the others get back whatever they had before linking. No errors.
+
+Q. Does it work with modded workbenches?
+A. Yes, as long as they are ordinary work tables. Mech gestators, subcores and other self-running benches are deliberately excluded because their bills are tied to their own building.
+
+Q. Known limitations?
+A. A group shares vanilla's cap of 15 bills, rather than 15 per station. Unfinished items (anything crafted over multiple sessions, like some modded recipes) cannot be shared and are refused at link time.
+
+Q. Was AI used?
+A. Yes — this mod was written with Claude, reviewed and tested by a human.</description>
+  <modDependencies>
+    <li>
+      <packageId>brrainz.harmony</packageId>
+      <displayName>Harmony</displayName>
+      <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+    </li>
+  </modDependencies>
+  <loadAfter>
+    <li>Ludeon.RimWorld</li>
+    <li>Ludeon.RimWorld.Royalty</li>
+    <li>Ludeon.RimWorld.Ideology</li>
+    <li>Ludeon.RimWorld.Biotech</li>
+    <li>Ludeon.RimWorld.Anomaly</li>
+    <li>brrainz.harmony</li>
+
+    <!-- Hauler's Dream postfixes WorkGiver_DoBill.JobOnThing three times and replaces the
+         returned job outright, patches BillStack.AddBill, and runs its batch crafting under
+         its own JobDef rather than JobDefOf.DoBill. We deliberately avoid JobOnThing and key
+         our in-flight tracking off job.bill rather than job.def so its jobs still count, but
+         it must load first so its routing decisions are made against our shared stack. -->
+    <li>giwaffed.HaulersDream</li>
+
+    <!-- Nice Bill Tab prefixes ITab_Bills.FillTab and implements drag-reorder by mutating
+         BillStack.Bills directly. It reads the billStack *field*, so our field swap is
+         transparent to it, but round-robin rotation and an in-progress drag can fight. -->
+    <li>Andromeda.NiceBillTab</li>
+
+    <!-- Nice Bill Tab Expansion postfixes Building_WorkTable.ExposeData (for its hidden-recipe
+         store) — the same method we prefix/finalize around to keep the shared stack from being
+         saved once per member. The two do not touch the same state, but ordering is declared
+         so the shared target is visible in the load graph. -->
+    <li>HICON.NiceBillTabExpansion</li>
+
+    <!-- Common Sense reworks WorkGiver_DoBill's ingredient search and hauling. -->
+    <li>avilmask.CommonSense</li>
+
+    <!-- Best Mix and Dubs Mint Menus both patch BillStack.DoListing. -->
+    <li>Mlie.BestMix</li>
+    <li>Dubwise.DubsMintMenus</li>
+
+    <!-- Everybody Gets One deletes and orphans bills, which assumes a bill's owning worktable
+         is stable. Ours deliberately is not: the anchor migrates when a bench is destroyed. -->
+    <li>Memegoddess.EverybodyGetsOne</li>
+  </loadAfter>
+</ModMetaData>

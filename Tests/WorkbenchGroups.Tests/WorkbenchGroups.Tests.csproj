@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="Mono.Cecil" Version="0.11.5" />
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit.Analyzers" Version="3.9.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="NUnit.Framework" />
+  </ItemGroup>
+
+  <!-- Compile the *shipped* core files, not copies, so a test can never pass against source
+       that differs from what the mod actually loads. The core is deliberately free of Verse
+       and UnityEngine references so it builds under net8.0 here. -->
+  <ItemGroup>
+    <Compile Include="../../Source/Core/RepeatModeCode.cs" Link="Core/RepeatModeCode.cs" />
+    <Compile Include="../../Source/Core/OvershootPolicy.cs" Link="Core/OvershootPolicy.cs" />
+    <Compile Include="../../Source/Core/BillOrdering.cs" Link="Core/BillOrdering.cs" />
+    <Compile Include="../../Source/Core/RecipeSetComparison.cs" Link="Core/RecipeSetComparison.cs" />
+    <Compile Include="../../Source/Core/CanonicalOrder.cs" Link="Core/CanonicalOrder.cs" />
+    <Compile Include="../../Source/Core/GroupMembership.cs" Link="Core/GroupMembership.cs" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+
+  <WBG_CommandLink>Link work orders</WBG_CommandLink>
+  <WBG_CommandLinkDesc>Share one list of work orders between the selected work stations. Any worker can then carry out any order at whichever station is free.\n\nStations can only be linked if they make the same things.</WBG_CommandLinkDesc>
+
+  <WBG_CommandUnlink>Unlink work orders</WBG_CommandUnlink>
+  <WBG_CommandUnlinkDesc>Remove this station from its group. It keeps its own, empty list of work orders; the group keeps the shared ones.</WBG_CommandUnlinkDesc>
+
+  <WBG_CommandSelectLinked>Select linked stations</WBG_CommandSelectLinked>
+  <WBG_CommandSelectLinkedDesc>Select every station sharing this list of work orders.</WBG_CommandSelectLinkedDesc>
+
+  <WBG_CommandRoundRobin>Round robin</WBG_CommandRoundRobin>
+  <WBG_CommandRoundRobinDesc>Work one item from each order in turn, instead of finishing the top order first.\n\nOrders visibly move to the bottom of the list as they are worked, so the top of the list is always what happens next. Turning this off restores the order you arranged.</WBG_CommandRoundRobinDesc>
+
+  <WBG_ModeInOrder>in order</WBG_ModeInOrder>
+  <WBG_ModeRoundRobin>round robin</WBG_ModeRoundRobin>
+  <WBG_InspectLinked>Linked: {0} stations ({1})</WBG_InspectLinked>
+
+  <WBG_MessageLinked>Linked {0} work stations.</WBG_MessageLinked>
+
+  <WBG_RefuseSelectTwo>Select at least two work stations to link.</WBG_RefuseSelectTwo>
+  <WBG_RefuseNotGroupable>{0} cannot be linked. Only ordinary work tables can share work orders.</WBG_RefuseNotGroupable>
+  <WBG_RefuseDifferentMaps>Work stations must be on the same map to be linked.</WBG_RefuseDifferentMaps>
+  <WBG_RefuseDifferentRecipes>{0} and {1} do not make the same things, so they cannot share work orders.</WBG_RefuseDifferentRecipes>
+  <WBG_RefuseUnshareableBill>"{0}" on {1} cannot be shared. Orders that leave an unfinished item behind must stay on one station.</WBG_RefuseUnshareableBill>
+  <WBG_RefuseTooManyBills>These stations have {0} work orders between them, and a shared list holds at most {1}. Remove some first.</WBG_RefuseTooManyBills>
+
+  <WBG_SettingPreventOvershoot>Reserve counts when work starts</WBG_SettingPreventOvershoot>
+  <WBG_SettingPreventOvershootTip>Stops a linked group overproducing when several workers start the same order at once. With this off, a group behaves like vanilla and can exceed "do X times".\n\nSide effect: an order being worked right now is drawn in the same colour vanilla uses for orders that cannot be started.</WBG_SettingPreventOvershootTip>
+
+  <WBG_SettingIsolateMute>Track ingredient searches per station</WBG_SettingIsolateMute>
+  <WBG_SettingIsolateMuteTip>When a station cannot find ingredients for an order, the game waits about ten seconds before trying again. Vanilla remembers that against the order, so in a linked group one badly-placed station makes every other station skip the order too. With this on, each station remembers its own.</WBG_SettingIsolateMuteTip>
+
+</LanguageData>
