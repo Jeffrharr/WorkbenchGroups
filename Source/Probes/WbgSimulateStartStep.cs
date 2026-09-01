@@ -24,8 +24,11 @@ namespace WorkbenchGroups.Probes
     /// A Wait job also stays current, which is what keeps the claim held while the probe reads it —
     /// a job that ended would be cleaned up and release its claim before anything could observe it.
     ///
-    /// Each start uses a different pawn, because one pawn starting a second job ends their first
-    /// and hands the claim straight back.
+    /// A different pawn is used per start where one is free, because one pawn starting a second
+    /// job ends their first and hands that claim straight back. Where the fixture has run out of
+    /// colonists it reuses one, which is harmless for rotation — the list has already moved — but
+    /// means only the most recent claim is still held. Pass <c>requireDistinct</c> when a scenario
+    /// needs several claims outstanding at once, so it fails loudly instead of measuring one.
     /// </summary>
     public sealed class WbgSimulateStartStep : IStepSpec, IStepAction
     {
@@ -42,6 +45,13 @@ namespace WorkbenchGroups.Probes
         public bool TryValidate(IReadOnlyDictionary<string, string> args, out string error)
         {
             error = null;
+
+            if (args.TryGetValue("requireDistinct", out string raw) && !bool.TryParse(raw, out _))
+            {
+                error = $"WbgSimulateBillStart: 'requireDistinct' is not a boolean (got '{raw}')";
+                return false;
+            }
+
             return true;
         }
 
@@ -60,11 +70,15 @@ namespace WorkbenchGroups.Probes
 
             Bill headBill = stack[0];
 
-            Pawn worker = NextUnusedWorker(ctx.Map);
+            bool requireDistinct = args.TryGetValue("requireDistinct", out string raw)
+                                   && bool.Parse(raw);
+
+            Pawn worker = NextUnusedWorker(ctx.Map) ?? (requireDistinct ? null : AnyWorker(ctx.Map));
             if (worker == null)
             {
                 return StepOutcome.Fail(
-                    $"WbgSimulateBillStart: no unused colonist left (already used {WbgTestState.SimulatedWorkers.Count})");
+                    $"WbgSimulateBillStart: no {(requireDistinct ? "unused " : "")}colonist available " +
+                    $"(already used {WbgTestState.SimulatedWorkers.Count})");
             }
 
             Job job = JobMaker.MakeJob(JobDefOf.Wait, HoldTicks);
@@ -74,6 +88,20 @@ namespace WorkbenchGroups.Probes
             WbgTestState.SimulatedWorkers.Add(worker);
 
             return new StepOutcome();
+        }
+
+        /// <summary>Any usable colonist, for reuse once the fixture's roster is exhausted.</summary>
+        private static Pawn AnyWorker(Map map)
+        {
+            foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
+            {
+                if (!pawn.Downed && !pawn.Dead)
+                {
+                    return pawn;
+                }
+            }
+
+            return null;
         }
 
         private static Pawn NextUnusedWorker(Map map)

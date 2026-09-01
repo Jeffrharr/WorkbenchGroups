@@ -137,6 +137,35 @@ once per bill per frame while the tab is open.
 
 ## Status
 
-Implemented and unit-tested. Offline suite covers the pure core in `Source/Core/` plus
-Mono.Cecil checks on every vanilla member the patches depend on. Not yet exercised in a
-running game — see the plan's live-harness verification, which is still outstanding.
+Implemented, unit-tested, and exercised in a running game.
+
+**Offline** (`./test.sh`, 81 tests): the pure core in `Source/Core/`, plus Mono.Cecil checks
+on every vanilla member the patches depend on.
+
+**Live** (`RimWorldTestHarness`, scenarios in `Tests/Scenarios/`, probe bridge in `TestMod/`).
+All probes pass:
+
+| Scenario | What it establishes |
+|---|---|
+| `link_smoke` | The mod loads. 22 work tables get the comp; no errors, no failed patches. |
+| `round_robin_rotation` | Group size 2; mode toggle takes; **3 bills visible from the second bench**, which is the field swap working; head bill cycles 0 → 1 → 2 → 0 across three starts. |
+| `overshoot_guard` | A `repeatCount = 1` bill goes from "would start" to "would not" the moment one pawn claims it. |
+| `shared_save_integrity` | **Zero duplicate load-ID warnings** on save, and sharing intact afterwards. |
+
+The rotation and overshoot scenarios drive real jobs carrying real bills through
+`Pawn_JobTracker.StartJob`, so the shipped Harmony postfix is in the path rather than
+being bypassed by the test calling our own code.
+
+### What is not yet verified
+
+- **The full craft loop.** The live scenarios test the decision made when a pawn commits
+  to a bill, holding the job as a `Wait` rather than `DoBill`. Whether pawns then walk to
+  the right bench and produce the right number of items is untested; it would make the
+  result depend on the fixture colony's food, power, pathing and work priorities.
+- **The reload half of the save round-trip.** The save side is measured directly (the
+  duplicate-ID warning is exactly the failure the `ExposeData` swap prevents), but the
+  harness has no step that reloads mid-scenario, so `PostMapInit` reinstalling the redirect
+  after a load has not been observed. This is the highest-value gap.
+- **Anchor handover, gravship transport, and minify/reinstall.** All reasoned about
+  carefully and none exercised.
+- **Interaction with the conflicting mods** listed above. Only the baseline load was run.

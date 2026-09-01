@@ -111,4 +111,23 @@ namespace WorkbenchGroups.Probes
             return comp.Ordering == OrderingMode.RoundRobin ? 1f : 0f;
         }
     }
+
+    /// <summary>
+    /// Duplicate load-ID warnings RimWorld logged during the last save.
+    ///
+    /// This is the direct measurement of the one failure that would silently corrupt a save:
+    /// several benches deep-saving the same bills. Anything above zero means the save-time field
+    /// swap did not do its job.
+    /// </summary>
+    public sealed class DuplicateSaveIdProbe : IProbe, IProbeMetadata
+    {
+        public string Name => "wbg_duplicate_save_ids";
+        public string Description => "Duplicate load-ID warnings during the last WbgSaveGame. Must be 0.";
+        public string Unit => "warnings";
+
+        public float Read(Map map)
+        {
+            return WbgSaveGameStep.DuplicateLoadIdWarnings;
+        }
+    }
 }
