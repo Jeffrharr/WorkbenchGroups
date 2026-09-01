@@ -42,6 +42,11 @@ namespace WorkbenchGroups
                 ref Settings.isolateIngredientMute,
                 "WBG_SettingIsolateMuteTip".Translate());
 
+            listing.CheckboxLabeled(
+                "WBG_SettingSelectWholeGroup".Translate(),
+                ref Settings.selectWholeGroup,
+                "WBG_SettingSelectWholeGroupTip".Translate());
+
             listing.Gap();
 
             // Takes effect on restart, not immediately: the comp is injected into defs at startup,

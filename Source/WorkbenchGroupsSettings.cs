@@ -45,12 +45,33 @@ namespace WorkbenchGroups
         /// </summary>
         public string excludedBenchClasses = "";
 
+        /// <summary>
+        /// Selecting one bench in a group selects them all.
+        ///
+        /// Off by default, and the reason is worth recording because the feature was asked for and
+        /// works: **RimWorld shows no ITab for a multi-selection.** Select two stoves and the
+        /// inspect pane reads "Electric stove x2" with no tabs at all — so auto-selecting the
+        /// group makes the bills tab unreachable by clicking a bench, and the bills tab is the
+        /// entire point of this mod. A screenshot caught it; nothing else would have.
+        ///
+        /// The second consequence, which stands on its own: gizmos act on the whole selection, so
+        /// with this on, clicking one bench and pressing Deconstruct deconstructs the group. That
+        /// is why vanilla's storage groups do not do this either.
+        ///
+        /// Left in rather than dropped because the group-at-a-glance reading is genuinely useful
+        /// when you are arranging a workshop rather than editing orders, and because the
+        /// connecting line and the group outline — which are the informative half — draw either
+        /// way, off a single selected bench.
+        /// </summary>
+        public bool selectWholeGroup = false;
+
         public override void ExposeData()
         {
             base.ExposeData();
             Scribe_Values.Look(ref preventOvershoot, "preventOvershoot", defaultValue: true);
             Scribe_Values.Look(ref isolateIngredientMute, "isolateIngredientMute", defaultValue: true);
             Scribe_Values.Look(ref excludedBenchClasses, "excludedBenchClasses", defaultValue: "");
+            Scribe_Values.Look(ref selectWholeGroup, "selectWholeGroup", defaultValue: false);
 
             if (Scribe.mode == LoadSaveMode.PostLoadInit && excludedBenchClasses == null)
             {

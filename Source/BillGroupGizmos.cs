@@ -189,9 +189,19 @@ namespace WorkbenchGroups
                 if (member.Spawned && member != bench)
                 {
                     cells.AddRange(member.OccupiedRect().Cells);
+
+                    // The same line vanilla draws between a workbench and its facilities, via the
+                    // same default material — so a group reads as "these are connected" using the
+                    // visual language players already know, rather than a second convention of
+                    // our own. Both ends draw when both are selected and the lines coincide
+                    // exactly, which is also what CompFacility and CompAffectedByFacilities do.
+                    GenDraw.DrawLineBetween(bench.TrueCenter(), member.TrueCenter());
                 }
             }
 
+            // Kept alongside the lines rather than replaced by them. With whole-group selection on
+            // every member draws vanilla's own selection brackets anyway, but with it off this
+            // box is the only thing that says which benches share the list.
             if (cells.Count > 0)
             {
                 GenDraw.DrawFieldEdges(cells, Color.yellow);

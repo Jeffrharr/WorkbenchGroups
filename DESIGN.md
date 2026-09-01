@@ -143,6 +143,18 @@ once per bill per frame while the tab is open.
   at some of these benches"; requiring identical sets makes every bill trivially valid
   everywhere, which is what lets the selection loop stay untouched.
 
+## Showing a group on the map
+
+A selected bench draws two things: a yellow outline around its groupmates, and `GenDraw.DrawLineBetween` to each of them. The line deliberately uses the same default material vanilla uses between a workbench and its facilities, so a group reads as "these are connected" in a visual language players already have, rather than in a second convention of our own. Both draw off a *single* selected bench, which turns out to matter.
+
+Selecting one bench can also select the whole group (`Patch_Selector_Select`), which is what people expect after using linked storage. **It ships off**, for a reason no probe could have found:
+
+> RimWorld shows no ITab for a multi-selection. Two selected stoves give an inspect pane reading "Electric stove x2" and no tabs at all — so auto-selecting the group makes the bills tab unreachable by clicking a bench, and the bills tab is the whole point of this mod.
+
+That surfaced the first time the feature was screenshotted, and it is why the visual sequence exists. The second consequence stands on its own and is the reason vanilla's storage groups do not auto-select either: gizmos act on the whole selection, so clicking one bench and pressing Deconstruct deconstructs the group.
+
+The setting is kept rather than dropped because the group-at-a-glance reading is genuinely useful when arranging a workshop rather than editing orders — and because the informative half, the line and the outline, is available either way. `wbg_selected_count` pins the shipped default, so a change that silently turned expansion on would fail rather than quietly take the bills tab away from everyone.
+
 ## Known rough edges
 
 - **Bills render pink while being worked.** `Bill.BaseColor` pinks any bill that would not

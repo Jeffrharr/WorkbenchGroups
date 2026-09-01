@@ -153,6 +153,26 @@ namespace WorkbenchGroups.Probes
     }
 
     /// <summary>
+    /// How many things are currently selected.
+    ///
+    /// Reads <c>Find.Selector</c> rather than anything of ours on purpose: whole-group selection
+    /// is only real if it lands in the game's own selection, since that is what gizmos, the
+    /// inspect pane and every other mod read. A count of our roster would pass while the player
+    /// still saw one bench highlighted.
+    /// </summary>
+    public sealed class SelectedCountProbe : IProbe, IProbeMetadata
+    {
+        public string Name => "wbg_selected_count";
+        public string Description => "Things currently selected in the game's own selector. 2 after clicking one bench of a linked pair.";
+        public string Unit => "things";
+
+        public float Read(Map map)
+        {
+            return Find.Selector?.NumSelected ?? -1f;
+        }
+    }
+
+    /// <summary>
     /// The ordering mode as reported by the *last* tracked bench's inspect pane.
     ///
     /// Distinct from <see cref="OrderingModeProbe"/>, which reads the anchor's comp — the value

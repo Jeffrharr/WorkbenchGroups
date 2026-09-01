@@ -34,6 +34,9 @@
   <WBG_SettingIsolateMute>Track ingredient searches per station</WBG_SettingIsolateMute>
   <WBG_SettingIsolateMuteTip>When a station cannot find ingredients for an order, the game waits about ten seconds before trying again. Vanilla remembers that against the order, so in a linked group one badly-placed station makes every other station skip the order too. With this on, each station remembers its own.</WBG_SettingIsolateMuteTip>
 
+  <WBG_SettingSelectWholeGroup>Select the whole group at once</WBG_SettingSelectWholeGroup>
+  <WBG_SettingSelectWholeGroupTip>Clicking any station in a group selects every station in it.\n\nOff by default, for two reasons. The game shows no bill list for a multiple selection, so with this on you cannot open a station's work orders by clicking it. And buttons act on everything selected, so clicking one station and pressing Deconstruct will deconstruct the whole group.\n\nThe connecting line and the group outline are drawn either way.</WBG_SettingSelectWholeGroupTip>
+
   <WBG_SettingExcludedClasses>Never link these station types</WBG_SettingExcludedClasses>
   <WBG_SettingExcludedClassesTip>Advanced. Class names, separated by commas — for example: Building_WorkTable_HeatPush\n\nStations are normally chosen by what they make, which works for modded stations too. If a modded station misbehaves when linked, the error message names its class; put that name here and this mod will leave it alone. Takes effect after a restart.</WBG_SettingExcludedClassesTip>
 

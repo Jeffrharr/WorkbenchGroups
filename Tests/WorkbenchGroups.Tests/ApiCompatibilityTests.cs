@@ -255,6 +255,34 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void Selector_Select_StillTakesObjectAndPlaysSound()
+    {
+        // Whole-group selection postfixes this. A renamed method silently stops the patch from
+        // applying, and the symptom is a feature that quietly does nothing.
+        var method = GetType("RimWorld.Selector")?.Methods
+            .FirstOrDefault(m => m.Name == "Select" && m.Parameters.Count == 3);
+
+        Assert.That(method, Is.Not.Null, "Selector.Select(3 args) no longer exists");
+        Assert.That(method!.Parameters[0].ParameterType.FullName, Is.EqualTo("System.Object"),
+            "Selector.Select's first parameter is no longer object");
+        Assert.That(method.Parameters.Select(p => p.Name),
+            Is.EqualTo(new[] { "obj", "playSound", "forceDesignatorDeselect" }),
+            "Selector.Select's parameters were renamed — the patch's named arguments will not bind");
+    }
+
+    [Test]
+    public void GenDraw_DrawLineBetween_StillHasTheTwoPointOverload()
+    {
+        // The group's connecting line uses the same default-material overload as CompFacility, so
+        // it matches vanilla's own "these are linked" visual rather than inventing one.
+        var method = GetType("Verse.GenDraw")?.Methods
+            .FirstOrDefault(m => m.Name == "DrawLineBetween" && m.Parameters.Count == 2);
+
+        Assert.That(method, Is.Not.Null,
+            "GenDraw.DrawLineBetween(A, B) no longer exists — the group connection line has no drawer");
+    }
+
+    [Test]
     public void BillProductionWithUft_StillExists()
     {
         Assert.That(GetType("RimWorld.Bill_ProductionWithUft"), Is.Not.Null,

@@ -48,6 +48,12 @@
     { "type": "Wait", "args": { "frames": "20" } },
     { "type": "Screenshot", "args": { "fileName": "seq_2_after_link.png", "hideUi": "false" } },
 
+    {
+      "comment": "WbgFocusBench selected exactly one bench, and whole-group selection ships off, so one is the expected count. This pins the default rather than the feature: a change that silently turned expansion on would take the bills tab away from every player, since RimWorld shows no ITab for a multi-selection.",
+      "type": "Probe",
+      "args": { "probeName": "wbg_selected_count", "expectedValue": "1", "tolerance": "0" }
+    },
+
     { "type": "WbgSaveGame", "args": { "name": "wbg_roundtrip" } },
     { "type": "Probe", "args": { "probeName": "wbg_duplicate_save_ids", "expectedValue": "0", "tolerance": "0" } }
   ]
