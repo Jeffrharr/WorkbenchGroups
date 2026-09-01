@@ -41,7 +41,85 @@ Runner/run_test.sh --mod <repo> --mod <repo>/TestMod --no-profiler <scenario.jso
 
 ---
 
-## 1. Extend the live scenarios
+## 1. Per-bill linkage — relax the link rules, mark the exceptions
+
+**The idea.** Today every refusal in `BillGroupOps.CanLink` refuses the *link*. Instead,
+link the benches and decide per *bill* which members may work it. A bill that only some
+members can make stays in the shared list, marked with a broken-chain icon, and only the
+capable benches ever pick it up. The player linked these benches deliberately, so "you get
+what you selected, and the list tells you which orders are special" beats a flat refusal.
+
+This is a better shape than the same-recipe-set rule it replaces, because the gate lands on
+the bill rather than on the group. It is **not** a loosening of a constant — see below for
+which rules it can and cannot cover.
+
+### Which of the five refusals this actually covers
+
+`WorkGiver_DoBill.StartOrResumeBillJob` decides everything on the normal path from `giver` —
+the bench the pawn walked to — and only the unfinished-thing path routes through
+`bill.billStack.billGiver`, which is the anchor. That split is what determines the answer:
+
+| `CanLink` refusal | Becomes per-bill? | Why |
+|---|---|---|
+| Mismatched recipe sets | **Yes** | Ingredient search, job target and work stats are all `giver`-relative on the normal path, so a plain `Bill_Production` owned by the anchor and worked at another member is already correct. Only the *selection* needs gating. |
+| Unshareable (UFT) bill | **No** | `FinishUftJob` resolves the unfinished item through `bill.billStack.billGiver` (WorkGiver_DoBill.cs:175,180), so a UFT bill in a shared stack is broken *however* it was selected. Pinning it changes who starts it, not where its unfinished item is looked for. Would need the bill to keep its own stack, and `ITab_Bills` reads one `billStack` object, so there is nowhere to put it. Stays a hard refusal. |
+| Over `BillStack.MaxCount` (15) | **No** | A vanilla cap on the stack itself, not a property of any one bill. |
+| Non-groupable bench class | **No** | About whether anchoring is safe at all, not about sharing. |
+| Different maps | **No** | The anchor must be a spawned bench on the same map. |
+
+So the feature is really "**mismatched recipe sets become per-bill**", and the broken-chain
+marker is the UI for it. Worth saying plainly in `DESIGN.md`, because "an edge case for each
+rule" is the natural expectation and only one rule can have one.
+
+### The mechanism, which is cheaper than it looks
+
+Both hooks already exist and both already only ever turn a yes into a no:
+
+1. `Patch_WorkGiver_DoBill_JobOnThing` already brackets the whole scan with a
+   prefix/finalizer pair and already knows the bench. Record the bench being scanned in a
+   static there. The finalizer is what makes that safe — it must clear on the exception path
+   or every later `ShouldDoNow` call reads a stale bench.
+2. `Patch_Bill_Production_ShouldDoNow` already postfixes the exact method the selection loop
+   calls per bill. Add: if a bench is currently being scanned and its
+   `def.AllRecipes` does not contain `__instance.recipe`, return false.
+
+Note `JobOnThing` early-returns on `BillStack.AnyShouldDoNow`, which is inside the prefix
+window, so the fast path and the loop agree without extra work.
+
+Outside that window the context is null and `ShouldDoNow` answers exactly as vanilla, which
+is what keeps the bills tab's colouring honest — a pinned bill should read normal on its own
+bench's tab and be distinguished by the icon, not by being drawn as un-startable everywhere.
+
+The pure half is a set-membership test over recipe defNames, so it belongs in `Source/Core/`
+next to `RecipeSetComparison` and is unit-testable without a game.
+
+### What has to change beyond the gate
+
+- `CanLink` drops the same-recipe-set refusal and gains an *overlap* requirement — at least
+  one shared plain recipe, or the group is pointless.
+- `RecipeSetComparison` stops being the link rule and becomes the "is this bill universal"
+  test. Keep it; it is what decides whether a bill gets the icon.
+- Round robin rotates the shared list at job start and would now rotate past bills the
+  current bench cannot make. Check that rotation still advances sensibly when a member can
+  work only a subset — the current-bench skip must not count as a turn.
+- The overshoot guard and in-flight tracking are unaffected: both key off the bill.
+
+### UI (deferred by the requester, but it is the whole point)
+
+A broken-chain icon next to any bill in the list that is not workable at every member of the
+group. Vanilla has no such icon; `TexCommand.RearmTrap` is already standing in as a
+placeholder elsewhere in this mod (see loose ends), so this wants a real texture. Hover text
+should name the benches that *can* do it, since "why is this one marked" is the only question
+the icon raises.
+
+### Verification this needs before it ships
+
+The negative-test suite in the next item, and — for the first time in this mod — a real craft
+loop scenario. This is the change that makes "a pawn walks to the right bench" a claim about
+correctness rather than about plumbing: the whole point is that a cook must *not* path to the
+bench that cannot cook.
+
+## 2. Extend the live scenarios
 
 Existing scenarios in `Tests/Scenarios/`: `eligibility_gate`, `link_smoke`,
 `round_robin_rotation`, `overshoot_guard`, `shared_save_integrity` — that glob is a valid
@@ -62,7 +140,7 @@ Two harness facts that shape everything below:
   must spawn its own pawns (`SpawnPawn`), and `WbgSimulateBillStart` already falls back to
   reusing a colonist rather than failing.
 
-### 1a. Anchor handover
+### 2a. Anchor handover
 
 Needs a new step (`WbgDestroyBench`) — the harness has no destroy/despawn step. Destroy the
 anchor and assert: the group survives, the bills survive, a new anchor is elected, and the
@@ -73,7 +151,7 @@ craft in the group and deletes the orders.
 Also worth covering with the same step: minify/reinstall (redirect withdrawn on despawn,
 reinstalled on spawn), and a group falling to one member (dissolves, survivor keeps bills).
 
-### 1b. Negative tests — every refusal path
+### 2b. Negative tests — every refusal path
 
 `BillGroupOps.CanLink` has five refusal branches and none is exercised. Two newer refusals
 belong in the same suite: `Patch_BillStack_AddBill` rejecting an unfinished-thing bill added
@@ -90,9 +168,11 @@ exposing the refusal reason (add `wbg_last_refusal_code`, an int, set by a
 - benches on different maps
 
 These are cheap, and they are what would have caught the eligibility change shifting the
-refusal set in a way nobody intended.
+refusal set in a way nobody intended. They are also the prerequisite for item 1, which
+rewrites two of the five branches — without a passing negative suite there is no baseline to
+say what the rewrite changed.
 
-### 1c. The real craft loop
+### 2c. The real craft loop
 
 Currently the behavioural scenarios hold a `Wait` job rather than `DoBill`, so "pawns walk
 to the right bench and make the right number of things" is unverified. To do it properly:
@@ -103,13 +183,13 @@ budget time for a leaner purpose-built fixture, and see the harness's own `Fixtu
 The specific claim worth proving here is the one round robin exists for: with three bills
 and enough workers, products come out roughly 1/1/1 rather than 3/0/0.
 
-### 1d. Ingredient-mute isolation
+### 2d. Ingredient-mute isolation
 
 `IngredientMuteIsolation` is implemented and completely untested. A probe reading the
 remembered per-(bill, bench) tick would let a scenario show that one bench failing an
 ingredient search does not mute the bill at the other.
 
-### 1e. Conflicting mods
+### 2e. Conflicting mods
 
 `About.xml` declares seven `loadAfter` entries. Only the baseline load has ever run. At
 minimum, one run with Hauler's Dream and Nice Bill Tab active, asserting the existing
@@ -117,7 +197,7 @@ probes still pass — those two are the ones that rewrite the surfaces we depend
 
 ---
 
-## 2. Smaller loose ends
+## 3. Smaller loose ends
 
 - `BillGroupGizmos.OrderingCommand` uses `TexCommand.RearmTrap` as a placeholder icon.
 - The unlink gizmo acts on the whole selection; confirm that reads correctly when benches
