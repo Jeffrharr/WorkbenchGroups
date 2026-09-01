@@ -24,6 +24,7 @@
   <WBG_RefuseDifferentMaps>Work stations must be on the same map to be linked.</WBG_RefuseDifferentMaps>
   <WBG_RefuseDifferentRecipes>{0} and {1} do not make the same things, so they cannot share work orders.</WBG_RefuseDifferentRecipes>
   <WBG_RefuseUnshareableBill>"{0}" on {1} cannot be shared. Orders that leave an unfinished item behind must stay on one station.</WBG_RefuseUnshareableBill>
+  <WBG_RefuseAddUnshareableBill>"{0}" cannot be added to a shared list. Orders that leave an unfinished item behind must stay on one station — unlink this one first.</WBG_RefuseAddUnshareableBill>
   <WBG_RefuseTooManyBills>These stations have {0} work orders between them, and a shared list holds at most {1}. Remove some first.</WBG_RefuseTooManyBills>
 
   <WBG_SettingPreventOvershoot>Reserve counts when work starts</WBG_SettingPreventOvershoot>
