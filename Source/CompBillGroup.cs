@@ -299,7 +299,15 @@ namespace WorkbenchGroups
                 return null;
             }
 
-            string mode = ordering == OrderingMode.RoundRobin
+            // Read the mode off the anchor, not off this bench. `ordering` is anchor-only state,
+            // so a follower's copy is whatever it happened to hold before it joined — always the
+            // InOrder default in practice. Reading it here made every non-anchor bench in a
+            // round-robin group report "in order", which is the mode line saying the opposite of
+            // what the group does. Found in a screenshot; no probe could see it, because the
+            // ordering probe reads the anchor.
+            CompBillGroup groupState = index.AnchorOf(bench)?.GetComp<CompBillGroup>() ?? this;
+
+            string mode = groupState.ordering == OrderingMode.RoundRobin
                 ? "WBG_ModeRoundRobin".Translate()
                 : "WBG_ModeInOrder".Translate();
 

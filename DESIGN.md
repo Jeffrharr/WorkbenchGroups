@@ -191,6 +191,19 @@ The rotation and overshoot scenarios drive real jobs carrying real bills through
 `Pawn_JobTracker.StartJob`, so the shipped Harmony postfix is in the path rather than
 being bypassed by the test calling our own code.
 
+Three captures in `Tests/Screenshots/` walk the round-trip: the second bench's empty tab
+before linking, the same bench showing the group's three bills after, and the same again in a
+second game load. Everything this mod does is invisible on the map — two stoves look identical
+linked or not — so the bills tab is the only frame worth taking, and `WbgFocusBench` exists to
+frame it.
+
+That sequence immediately earned itself: the "after link" frame read **"Linked: 2 stations (in
+order)"** on a group that was in round robin. `ordering` is anchor-only state, and
+`CompInspectStringExtra` was reading the selected bench's own copy, so every non-anchor bench in
+a round-robin group told the player the opposite of what the group did. No probe could catch it,
+because every probe read the anchor; `wbg_member_reported_mode` now reads what a follower
+reports, and is asserted on both sides of the save.
+
 The round-trip's key probe is `wbg_stacks_reference_equal`, not a bill count. Counting bills
 would pass on two benches that each came back holding their own deep-loaded copy of the same
 three bills, which is exactly what a missing redirect produces. Nothing about object identity

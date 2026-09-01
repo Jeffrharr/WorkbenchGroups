@@ -16,6 +16,21 @@
 
     { "type": "Probe", "args": { "probeName": "wbg_group_size", "expectedValue": "2", "tolerance": "0" } },
     { "type": "Probe", "args": { "probeName": "wbg_bills_visible_at_second_bench", "expectedValue": "3", "tolerance": "0" } },
-    { "type": "Probe", "args": { "probeName": "wbg_ordering_mode", "expectedValue": "1", "tolerance": "0" } }
+    { "type": "Probe", "args": { "probeName": "wbg_ordering_mode", "expectedValue": "1", "tolerance": "0" } },
+
+    {
+      "comment": "What a follower's inspect pane tells the player, as opposed to what the anchor's comp holds. These disagreed until the mode line was made to read the anchor: every non-anchor bench in a round-robin group said 'in order'.",
+      "type": "Probe",
+      "args": { "probeName": "wbg_member_reported_mode", "expectedValue": "1", "tolerance": "0" }
+    },
+
+    {
+      "comment": "The third frame, in a second game load: the same bench, the same three bills, rebuilt by PostMapInit rather than by anything in this scenario. Reference equality is what the probe above proves; this only shows the player-visible half survived.",
+      "type": "WbgFocusBench",
+      "args": { "def": "ElectricStove", "index": "1" }
+    },
+    { "type": "LookAt", "args": { "zoom": "11" } },
+    { "type": "Wait", "args": { "frames": "20" } },
+    { "type": "Screenshot", "args": { "fileName": "seq_3_after_reload.png", "hideUi": "false" } }
   ]
 }

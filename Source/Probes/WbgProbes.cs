@@ -153,6 +153,45 @@ namespace WorkbenchGroups.Probes
     }
 
     /// <summary>
+    /// The ordering mode as reported by the *last* tracked bench's inspect pane.
+    ///
+    /// Distinct from <see cref="OrderingModeProbe"/>, which reads the anchor's comp — the value
+    /// the group actually runs on. This reads what a player standing on a follower is told, and
+    /// the two disagreeing is exactly the bug this probe exists for: `ordering` is anchor-only
+    /// state, so a follower's own copy is the InOrder default and every non-anchor bench in a
+    /// round-robin group reported "in order". A screenshot caught it; no probe could, because
+    /// every probe read the anchor.
+    /// </summary>
+    public sealed class MemberReportedModeProbe : IProbe, IProbeMetadata
+    {
+        public string Name => "wbg_member_reported_mode";
+        public string Description => "Ordering mode named in the last tracked bench's inspect pane: 0 = in order, 1 = round robin.";
+        public string Unit => "enum";
+
+        public float Read(Map map)
+        {
+            if (WbgTestState.Benches.Count < 2)
+            {
+                return -1f;
+            }
+
+            Building_WorkTable member = WbgTestState.Benches[WbgTestState.Benches.Count - 1];
+            string inspect = member.GetComp<CompBillGroup>()?.CompInspectStringExtra();
+            if (inspect == null)
+            {
+                return -1f;
+            }
+
+            if (inspect.Contains("WBG_ModeRoundRobin".Translate()))
+            {
+                return 1f;
+            }
+
+            return inspect.Contains("WBG_ModeInOrder".Translate()) ? 0f : -1f;
+        }
+    }
+
+    /// <summary>
     /// Duplicate load-ID warnings RimWorld logged during the last save.
     ///
     /// This is the direct measurement of the one failure that would silently corrupt a save:
