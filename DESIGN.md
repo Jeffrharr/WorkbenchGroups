@@ -185,10 +185,18 @@ All probes pass:
 | `round_robin_rotation` | Group size 2; mode toggle takes; **3 bills visible from the second bench**, which is the field swap working; head bill cycles 0 → 1 → 2 → 0 across three starts. |
 | `overshoot_guard` | A `repeatCount = 1` bill goes from "would start" to "would not" the moment one pawn claims it. |
 | `shared_save_integrity` | **Zero duplicate load-ID warnings** on save, and sharing intact afterwards. |
+| `reload_roundtrip_save` + `reload_roundtrip_load` | The save/reload round-trip, run as two game loads by `Tests/run_roundtrip.sh` (kept in `Tests/Scenarios/roundtrip/`, since it needs a fixture the rest of the suite does not) — phase A links, adds three bills, switches on round robin and saves; the script copies that save into the harness's `Fixtures/`; phase B boots with it and only probes. **After the load the two benches' `billStack` fields are the same object**, all three bills are visible from the second bench, and the group is still in round robin. |
 
 The rotation and overshoot scenarios drive real jobs carrying real bills through
 `Pawn_JobTracker.StartJob`, so the shipped Harmony postfix is in the path rather than
 being bypassed by the test calling our own code.
+
+The round-trip's key probe is `wbg_stacks_reference_equal`, not a bill count. Counting bills
+would pass on two benches that each came back holding their own deep-loaded copy of the same
+three bills, which is exactly what a missing redirect produces. Nothing about object identity
+is visible in a frame, so there is no screenshot; the check that the scenario is not vacuously
+green is a negative control — pointed at `minimal_colony.rws` instead, every probe fails and
+`WbgTrackGroup` reports no group on the map.
 
 ### What is not yet verified
 
@@ -196,10 +204,6 @@ being bypassed by the test calling our own code.
   to a bill, holding the job as a `Wait` rather than `DoBill`. Whether pawns then walk to
   the right bench and produce the right number of items is untested; it would make the
   result depend on the fixture colony's food, power, pathing and work priorities.
-- **The reload half of the save round-trip.** The save side is measured directly (the
-  duplicate-ID warning is exactly the failure the `ExposeData` swap prevents), but the
-  harness has no step that reloads mid-scenario, so `PostMapInit` reinstalling the redirect
-  after a load has not been observed. This is the highest-value gap.
 - **Anchor handover, gravship transport, and minify/reinstall.** All reasoned about
   carefully and none exercised.
 - **Interaction with the conflicting mods** listed above. Only the baseline load was run.

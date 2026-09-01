@@ -1,0 +1,21 @@
+{
+  "name": "reload_roundtrip_load",
+  "saveFile": "wbg_roundtrip.rws",
+  "steps": [
+    {
+      "comment": "Phase B of the reload round-trip: the save written by reload_roundtrip_save, loaded fresh. Probes only — nothing here links anything, so everything asserted below was rebuilt by CompBillGroup.PostMapInit reinstalling the field redirect during the load. Needs Tests/run_roundtrip.sh, which copies the save into the harness's Fixtures/ between the two runs. No screenshot: what this proves is that two benches point at one BillStack object, and no frame can show that. The falsifiability evidence is the control run in run_roundtrip.sh's header instead.",
+      "type": "WbgTrackGroup",
+      "args": { "expectSize": "2" }
+    },
+
+    {
+      "comment": "The load-bearing one. Bill counts alone would pass on two benches that came back holding separate deep-loaded copies of the same three bills, which is precisely the failure a missing redirect produces.",
+      "type": "Probe",
+      "args": { "probeName": "wbg_stacks_reference_equal", "expectedValue": "1", "tolerance": "0" }
+    },
+
+    { "type": "Probe", "args": { "probeName": "wbg_group_size", "expectedValue": "2", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "wbg_bills_visible_at_second_bench", "expectedValue": "3", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "wbg_ordering_mode", "expectedValue": "1", "tolerance": "0" } }
+  ]
+}

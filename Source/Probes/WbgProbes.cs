@@ -113,6 +113,46 @@ namespace WorkbenchGroups.Probes
     }
 
     /// <summary>
+    /// Whether every member of the tracked group points at one and the same BillStack object.
+    ///
+    /// This is the probe the reload half of the round-trip turns on. Counting bills at the second
+    /// bench can pass on two stacks that merely happen to hold the same number — after a load that
+    /// is exactly the near-miss to worry about, because without the redirect each bench comes back
+    /// holding its own deep-loaded copy of the list. Reference equality is the only reading that
+    /// tells sharing apart from coincidence.
+    /// </summary>
+    public sealed class SharedStackIdentityProbe : IProbe, IProbeMetadata
+    {
+        public string Name => "wbg_stacks_reference_equal";
+        public string Description => "1 if every tracked bench's billStack is the same object as the first bench's, 0 if any differs.";
+        public string Unit => "boolean";
+
+        public float Read(Map map)
+        {
+            if (WbgTestState.Benches.Count < 2)
+            {
+                return -1f;
+            }
+
+            BillStack anchorStack = WbgTestState.Benches[0].billStack;
+            if (anchorStack == null)
+            {
+                return -1f;
+            }
+
+            foreach (Building_WorkTable bench in WbgTestState.Benches)
+            {
+                if (!ReferenceEquals(bench.billStack, anchorStack))
+                {
+                    return 0f;
+                }
+            }
+
+            return 1f;
+        }
+    }
+
+    /// <summary>
     /// Duplicate load-ID warnings RimWorld logged during the last save.
     ///
     /// This is the direct measurement of the one failure that would silently corrupt a save:

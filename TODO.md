@@ -3,9 +3,8 @@
 ## Where things stand
 
 `WorkbenchGroups` (packageId `joof.workbenchgroups`) links crafting stations so they share
-one bill list, plus a per-group round-robin ordering mode. Three commits on `main`,
-built, symlinked into the game's Mods folder, 81 offline tests green, four live scenarios
-green.
+one bill list, plus a per-group round-robin ordering mode. Built, symlinked into the game's
+Mods folder, 109 offline tests green, seven live scenarios green.
 
 Read `DESIGN.md` first — it carries the reasoning. The short version of the load-bearing
 facts, so they don't have to be re-derived from the decompile:
@@ -21,6 +20,12 @@ facts, so they don't have to be re-derived from the decompile:
 - That forces the `Building_WorkTable.ExposeData` prefix/finalizer. Without it every
   member deep-saves the same bills and the save is corrupt on load.
 - Round robin rotates at **job start**, never on iteration completion.
+- Eligibility is decided from **recipes, not bench classes**: a bench is groupable if at
+  least one of its recipes would make a plain `Bill_Production`
+  (`BillUtility.MakeNewBill` picks the subclass from the `RecipeDef` alone). "At least one"
+  and not "every one" — the strict form excludes every crafting bench in the game, which
+  the `eligibility_gate` census measures. The per-bill half is enforced by
+  `Patch_BillStack_AddBill`.
 
 Layout: pure dependency-free logic in `Source/Core/` (compiled into the test project by
 `<Compile Include>`, so tests run the shipped files); Verse adapter in `Source/`; Harmony
@@ -36,58 +41,16 @@ Runner/run_test.sh --mod <repo> --mod <repo>/TestMod --no-profiler <scenario.jso
 
 ---
 
-## 1. Replace the bench whitelist with a recipe-shaped gate (+ a small blacklist)
+## 1. Extend the live scenarios
 
-**Why this is the top item.** `BenchEligibility.GroupableBenchClasses` is currently a
-whitelist of exactly two types. That excludes every modded workbench with a custom
-`thingClass`, which is most interesting ones. It already bit us once: stoves are
-`Building_WorkTable_HeatPush`, so the first cut of the rule silently excluded the mod's
-own headline use case, and only writing the live test caught it.
+Existing scenarios in `Tests/Scenarios/`: `eligibility_gate`, `link_smoke`,
+`round_robin_rotation`, `overshoot_guard`, `shared_save_integrity` — that glob is a valid
+one-load suite. The two-load `roundtrip/` pair is deliberately not in it (different fixture);
+run it with `Tests/run_roundtrip.sh`. Steps and probes live in `Source/Probes/`.
 
-**The better gate is not a blacklist of classes — it's a property of the recipes.**
-`BillUtility.MakeNewBill` decides the `Bill` subclass purely from the `RecipeDef`:
-
-```csharp
-if (recipe.UsesUnfinishedThing)  return new Bill_ProductionWithUft(...);
-if (recipe.mechResurrection)     return new Bill_ResurrectMech(...);
-if (recipe.gestationCycles > 0)  return new Bill_ProductionMech(...);
-if (recipe.formingTicks > 0)     return new Bill_Autonomous(...);
-return new Bill_Production(...);
-```
-
-Every bill type we must refuse is therefore predictable from the def alone, with no
-reference to the bench's C# class. So:
-
-- **Primary gate (class-agnostic).** A def is groupable iff it is `is Building_WorkTable`
-  and **every** recipe in `def.AllRecipes` would make a plain `Bill_Production` — i.e.
-  none of `UsesUnfinishedThing`, `mechResurrection`, `gestationCycles > 0`,
-  `formingTicks > 0`. This admits modded benches automatically, and excludes mech
-  gestators and subcore encoders automatically *because of their recipes*, without naming
-  their classes at all.
-- **Safety net (the blacklist).** Also reject anything assignable to
-  `Building_WorkTableAutonomous` (which covers `Building_MechGestator`). Cheap, and it
-  guards a future vanilla class whose recipes don't give the danger away.
-- **Escape hatch.** A mod setting holding a list of excluded `thingClass` names, so a
-  player who hits a bad modded bench can exclude it without waiting on a patch.
-
-**The residual risk to state plainly in `DESIGN.md`:** a modded bench class could still
-hard-cast `billStack.billGiver` to its own type in its own code, and no def-level rule can
-see that. The escape hatch is the answer, plus wrapping `BillGroupOps.Link` so a throw
-during linking cannot leave benches half-swapped.
-
-Touches `BenchEligibility.IsGroupableBench` / `IsGroupableDef` (the injector already
-routes through the latter, so both stay in sync). Move the recipe predicate into
-`Source/Core/` and unit-test it — it is pure boolean logic over four fields. Update the
-Cecil test that currently pins `Building_WorkTable_HeatPush`'s shape: under the new rule
-that class is no longer special, but a test should pin the four `RecipeDef` fields
-instead, since the gate now depends on them.
-
----
-
-## 2. Extend the live scenarios
-
-Existing scenarios in `Tests/Scenarios/`: `link_smoke`, `round_robin_rotation`,
-`overshoot_guard`, `shared_save_integrity`. Steps and probes live in `Source/Probes/`.
+The reload round-trip pattern is reusable: the harness has no mid-scenario reload step and
+does not need one — write a save in one run, name it as the next run's `saveFile`. See
+`Tests/run_roundtrip.sh`.
 
 Two harness facts that shape everything below:
 
@@ -99,26 +62,7 @@ Two harness facts that shape everything below:
   must spawn its own pawns (`SpawnPawn`), and `WbgSimulateBillStart` already falls back to
   reusing a colonist rather than failing.
 
-### 2a. The reload round-trip — the biggest gap
-
-Nothing has yet observed `CompBillGroup.PostMapInit` reinstalling the field redirect after
-a load. The save half is measured (`wbg_duplicate_save_ids`), the load half is not.
-
-The harness has no mid-scenario reload step, but **it doesn't need one**: run two
-scenarios back to back and carry the save between them.
-
-1. Phase A: link benches, add bills, `WbgSaveGame` → writes `Saves/wbg_roundtrip.rws`.
-2. Copy that file to `<harness>/Fixtures/wbg_roundtrip.rws`.
-3. Phase B: a scenario with `"saveFile": "wbg_roundtrip.rws"` whose steps are *only*
-   probes — group size 2, bills visible at the second bench, and a new probe asserting the
-   second bench's `billStack` is reference-equal to the anchor's.
-
-Wrap the three in a script (`Tests/run_roundtrip.sh`). Phase B must run with the same
-`--mod` set, since the save embeds its mod list. Add a probe for reference-equality of the
-stacks; without it Phase B could pass on two benches that merely happen to hold equal
-counts.
-
-### 2b. Anchor handover
+### 1a. Anchor handover
 
 Needs a new step (`WbgDestroyBench`) — the harness has no destroy/despawn step. Destroy the
 anchor and assert: the group survives, the bills survive, a new anchor is elected, and the
@@ -129,9 +73,13 @@ craft in the group and deletes the orders.
 Also worth covering with the same step: minify/reinstall (redirect withdrawn on despawn,
 reinstalled on spawn), and a group falling to one member (dissolves, survivor keeps bills).
 
-### 2c. Negative tests — every refusal path
+### 1b. Negative tests — every refusal path
 
-`BillGroupOps.CanLink` has five refusal branches and none is exercised. Each needs a probe
+`BillGroupOps.CanLink` has five refusal branches and none is exercised. Two newer refusals
+belong in the same suite: `Patch_BillStack_AddBill` rejecting an unfinished-thing bill added
+to a grouped bench (unit-tested predicate, never seen in play), and `BillGroupOps.Link`'s
+rollback, which was written against a throw we cannot reproduce on demand and has never run.
+A step that links a bench whose comp is rigged to throw would exercise it. Each needs a probe
 exposing the refusal reason (add `wbg_last_refusal_code`, an int, set by a
 `WbgTryLink` step that expects failure):
 
@@ -141,10 +89,10 @@ exposing the refusal reason (add `wbg_last_refusal_code`, an int, set by a
 - a non-groupable bench class
 - benches on different maps
 
-These are cheap and they protect the rule in item 1 — after that change the refusal set
-shifts, and a passing negative suite is what will show whether it shifted the way intended.
+These are cheap, and they are what would have caught the eligibility change shifting the
+refusal set in a way nobody intended.
 
-### 2d. The real craft loop
+### 1c. The real craft loop
 
 Currently the behavioural scenarios hold a `Wait` job rather than `DoBill`, so "pawns walk
 to the right bench and make the right number of things" is unverified. To do it properly:
@@ -155,13 +103,13 @@ budget time for a leaner purpose-built fixture, and see the harness's own `Fixtu
 The specific claim worth proving here is the one round robin exists for: with three bills
 and enough workers, products come out roughly 1/1/1 rather than 3/0/0.
 
-### 2e. Ingredient-mute isolation
+### 1d. Ingredient-mute isolation
 
 `IngredientMuteIsolation` is implemented and completely untested. A probe reading the
 remembered per-(bill, bench) tick would let a scenario show that one bench failing an
 ingredient search does not mute the bill at the other.
 
-### 2f. Conflicting mods
+### 1e. Conflicting mods
 
 `About.xml` declares seven `loadAfter` entries. Only the baseline load has ever run. At
 minimum, one run with Hauler's Dream and Nice Bill Tab active, asserting the existing
@@ -169,7 +117,7 @@ probes still pass — those two are the ones that rewrite the surfaces we depend
 
 ---
 
-## 3. Smaller loose ends
+## 2. Smaller loose ends
 
 - `BillGroupGizmos.OrderingCommand` uses `TexCommand.RearmTrap` as a placeholder icon.
 - The unlink gizmo acts on the whole selection; confirm that reads correctly when benches

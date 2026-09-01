@@ -17,6 +17,7 @@ namespace WorkbenchGroups.Probes
             ProbeRegistry.Register(new HeadBillSlotProbe());
             ProbeRegistry.Register(new FirstBillShouldDoNowProbe());
             ProbeRegistry.Register(new OrderingModeProbe());
+            ProbeRegistry.Register(new SharedStackIdentityProbe());
             ProbeRegistry.Register(new DuplicateSaveIdProbe());
         }
     }

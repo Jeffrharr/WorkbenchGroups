@@ -1,0 +1,30 @@
+{
+  "name": "reload_roundtrip_save",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "comment": "Phase A of the reload round-trip. Builds a group, gives it bills, and saves. The assertions here are only that the group was real before saving — everything this phase exists for is checked by reload_roundtrip_load, in a second game load, against the file this writes. Run both with Tests/run_roundtrip.sh.",
+      "type": "SetTerrain",
+      "args": { "def": "Concrete", "width": "14", "height": "10" }
+    },
+    { "type": "PlaceThings", "args": { "def": "ElectricStove", "layout": "cells", "cells": "-3,0; 3,0", "rot": "South" } },
+
+    { "type": "WbgLinkBenches", "args": { "def": "ElectricStove", "limit": "2", "mode": "RoundRobin" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealSimple", "count": "5" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealFine", "count": "5" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealLavish", "count": "5" } },
+
+    { "type": "Probe", "args": { "probeName": "wbg_group_size", "expectedValue": "2", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "wbg_bills_visible_at_second_bench", "expectedValue": "3", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "wbg_stacks_reference_equal", "expectedValue": "1", "tolerance": "0" } },
+
+    {
+      "comment": "Round robin is switched on before saving so the load side proves the group's mode survived too, not just its membership. A handover or a load that resets a group to in-order is a silent behaviour change nothing else would catch.",
+      "type": "Probe",
+      "args": { "probeName": "wbg_ordering_mode", "expectedValue": "1", "tolerance": "0" }
+    },
+
+    { "type": "WbgSaveGame", "args": { "name": "wbg_roundtrip" } },
+    { "type": "Probe", "args": { "probeName": "wbg_duplicate_save_ids", "expectedValue": "0", "tolerance": "0" } }
+  ]
+}
