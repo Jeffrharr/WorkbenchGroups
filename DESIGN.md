@@ -95,17 +95,47 @@ once per bill per frame while the tab is open.
 
 ## Deliberate exclusions
 
-- **Bench classes outside a whitelist.** `Building_WorkTableAutonomous` and its descendant
-  `Building_MechGestator` derive from `Building_WorkTable` and then cast the bill's owner
-  back to their own class, so a wrong-class anchor throws every frame rather than degrading.
-  The whitelist is therefore of exact types, not an `is` check.
+- **Benches with no shareable recipe at all.** Eligibility is decided by what a bench
+  *makes*, not by its C# class. `BillUtility.MakeNewBill` picks the `Bill` subclass from the
+  `RecipeDef` alone — `UsesUnfinishedThing`, `mechResurrection`, `gestationCycles > 0`,
+  `formingTicks > 0`, else plain `Bill_Production` — so the only bill type we can share is
+  predictable from the def, with no reference to the bench's class. A bench is offered the
+  gizmo when at least one of its recipes makes a plain `Bill_Production`; if none does, a
+  group could never hold anything and the gizmo would be a lie.
 
-  It holds two entries. `Building_WorkTable_HeatPush` is in it because it is behaviourally
-  identical for our purposes — its only override is `UsedThisTick`, pushing heat — and
-  because every vanilla stove and smithy uses it, so excluding it would have excluded the
-  case the mod exists for. That was caught by trying to write the live test, not by
-  reading the class list; a Cecil test now fails if that class gains state or another
-  override. Modded benches that subclass for cosmetics are excluded until whitelisted.
+  This replaced a whitelist of two exact types, which was wrong in both directions. It
+  excluded every modded bench with a custom `thingClass`, and it *included*
+  `SubcoreEncoder` — a plain `Building_WorkTable` whose one recipe has `formingTicks`, so
+  the old rule would have put a `Bill_Autonomous` into a shared stack.
+
+  **"At least one" and not "every one" is the load-bearing choice.** The stricter form is
+  tempting because it makes an unshareable bill impossible on a grouped bench. Measured
+  against the loaded def database it excludes every crafting bench in the game: apparel,
+  weapons, armour and sculptures all use unfinished things, so tailoring benches (1 of 45
+  recipes plain), smithies (3 of 23), the machining table (7 of 70), the crafting spot
+  (3 of 19) and the bioferrite shaper (1 of 20) all lose the gizmo. That trades a modded-
+  bench gap for a far larger vanilla one. The census the `eligibility_gate` scenario logs is
+  what settled it; the rule was written the strict way first and the numbers changed it.
+
+  So the recipe test lives at the bill instead, where the danger actually is:
+  `Patch_BillStack_AddBill` refuses a non-shareable bill entry into a shared stack, on every
+  route — the tab's dropdown, paste from the clipboard, another mod adding one in code.
+  A grouped machining table still offers "make assault rifle" and refuses it with a message
+  naming the bill, which is a smaller surprise than the gizmo being absent from every
+  crafting bench in the colony.
+- **Bench classes assignable to `Building_WorkTableAutonomous`.** A safety net, not the
+  rule. That class and its descendant `Building_MechGestator` cast the bill's owner back to
+  their own type, so a wrong-class anchor throws every frame rather than degrading. Their
+  recipes already give them away, which makes the check redundant today; it is there for a
+  future vanilla subclass whose recipes do not.
+- **Anything the player names.** A mod setting holds `thingClass` names to leave alone,
+  matched on either the qualified or the bare form. This is the escape hatch for the one
+  thing no def-level rule can see: a modded bench class hard-casting `billStack.billGiver`
+  to its own type inside its own code. No rule over defs can detect that before it throws,
+  and the stack trace the player is already looking at names the class, so pasting it into a
+  box is a same-evening fix rather than a wait for a release. `BillGroupOps.Link` also rolls
+  back if anything throws partway through, so a bench class we admitted on trust cannot cost
+  the player their work orders.
 - **Bills that are not exactly `Bill_Production`.** `Bill_ProductionWithUft` is the
   painful one: an unfinished item left on a non-anchor bench fails `HaulAIUtility`'s
   "inside the owner's footprint" test forever and can never be hauled away.
@@ -139,15 +169,19 @@ once per bill per frame while the tab is open.
 
 Implemented, unit-tested, and exercised in a running game.
 
-**Offline** (`./test.sh`, 81 tests): the pure core in `Source/Core/`, plus Mono.Cecil checks
-on every vanilla member the patches depend on.
+**Offline** (`./test.sh`, 109 tests): the pure core in `Source/Core/`, plus Mono.Cecil checks
+on every vanilla member the patches depend on — including the four `RecipeDef` members the
+eligibility gate reads, and the set of `Bill` types `BillUtility.MakeNewBill` constructs. That
+second one is the gate's real dependency: a fifth branch added there would let a new bill type
+into shared stacks with nothing else failing.
 
 **Live** (`RimWorldTestHarness`, scenarios in `Tests/Scenarios/`, probe bridge in `TestMod/`).
 All probes pass:
 
 | Scenario | What it establishes |
 |---|---|
-| `link_smoke` | The mod loads. 22 work tables get the comp; no errors, no failed patches. |
+| `eligibility_gate` | The recipe-shaped rule against the real def database, all DLC loaded: 14 named benches groupable, 5 not. Logs a census of every work-table def with its verdict and plain-recipe count, so a RimWorld update that shifts the rule is diagnosable from one run. |
+| `link_smoke` | The mod loads. 19 work tables get the comp; no errors, no failed patches. |
 | `round_robin_rotation` | Group size 2; mode toggle takes; **3 bills visible from the second bench**, which is the field swap working; head bill cycles 0 → 1 → 2 → 0 across three starts. |
 | `overshoot_guard` | A `repeatCount = 1` bill goes from "would start" to "would not" the moment one pawn claims it. |
 | `shared_save_integrity` | **Zero duplicate load-ID warnings** on save, and sharing intact afterwards. |
@@ -169,3 +203,8 @@ being bypassed by the test calling our own code.
 - **Anchor handover, gravship transport, and minify/reinstall.** All reasoned about
   carefully and none exercised.
 - **Interaction with the conflicting mods** listed above. Only the baseline load was run.
+- **The `AddBill` refusal, in play.** The predicate behind it is unit-tested and the
+  eligibility census proves which benches can reach the case, but no scenario has yet added
+  an unfinished-thing bill to a grouped bench and watched it be refused.
+- **The link rollback.** Written against a throw we cannot reproduce on demand, so it has
+  never run.

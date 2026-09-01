@@ -20,11 +20,12 @@
   <WBG_MessageLinked>Linked {0} work stations.</WBG_MessageLinked>
 
   <WBG_RefuseSelectTwo>Select at least two work stations to link.</WBG_RefuseSelectTwo>
-  <WBG_RefuseNotGroupable>{0} cannot be linked. Only ordinary work tables can share work orders.</WBG_RefuseNotGroupable>
+  <WBG_RefuseNotGroupable>{0} cannot be linked. Stations that build things over time, like mech gestators, keep their own work orders.</WBG_RefuseNotGroupable>
   <WBG_RefuseDifferentMaps>Work stations must be on the same map to be linked.</WBG_RefuseDifferentMaps>
   <WBG_RefuseDifferentRecipes>{0} and {1} do not make the same things, so they cannot share work orders.</WBG_RefuseDifferentRecipes>
   <WBG_RefuseUnshareableBill>"{0}" on {1} cannot be shared. Orders that leave an unfinished item behind must stay on one station.</WBG_RefuseUnshareableBill>
   <WBG_RefuseAddUnshareableBill>"{0}" cannot be added to a shared list. Orders that leave an unfinished item behind must stay on one station — unlink this one first.</WBG_RefuseAddUnshareableBill>
+  <WBG_RefuseLinkFailed>Something went wrong linking these stations. Their work orders have been put back. See the log for details.</WBG_RefuseLinkFailed>
   <WBG_RefuseTooManyBills>These stations have {0} work orders between them, and a shared list holds at most {1}. Remove some first.</WBG_RefuseTooManyBills>
 
   <WBG_SettingPreventOvershoot>Reserve counts when work starts</WBG_SettingPreventOvershoot>
@@ -32,5 +33,8 @@
 
   <WBG_SettingIsolateMute>Track ingredient searches per station</WBG_SettingIsolateMute>
   <WBG_SettingIsolateMuteTip>When a station cannot find ingredients for an order, the game waits about ten seconds before trying again. Vanilla remembers that against the order, so in a linked group one badly-placed station makes every other station skip the order too. With this on, each station remembers its own.</WBG_SettingIsolateMuteTip>
+
+  <WBG_SettingExcludedClasses>Never link these station types</WBG_SettingExcludedClasses>
+  <WBG_SettingExcludedClassesTip>Advanced. Class names, separated by commas — for example: Building_WorkTable_HeatPush\n\nStations are normally chosen by what they make, which works for modded stations too. If a modded station misbehaves when linked, the error message names its class; put that name here and this mod will leave it alone. Takes effect after a restart.</WBG_SettingExcludedClassesTip>
 
 </LanguageData>

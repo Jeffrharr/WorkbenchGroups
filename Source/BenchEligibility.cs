@@ -14,43 +14,119 @@ namespace WorkbenchGroups
     /// owns the bill — but a handful of vanilla types break that assumption by hard-casting
     /// <c>bill.billStack.billGiver</c> to their own concrete class. Those cases do not degrade,
     /// they throw every frame, so they are refused at link time instead.
+    ///
+    /// What is refused is decided from the bench's <em>recipes</em>, not its class: see
+    /// <see cref="RecipeGate"/>. The class only enters as a coarse safety net and as the player's
+    /// escape hatch.
     /// </summary>
     public static class BenchEligibility
     {
+        /// <summary>Last-parsed exclusion setting, and the raw string it was parsed from.</summary>
+        private static string cachedExclusionSource;
+        private static string[] cachedExclusions = new string[0];
+
         /// <summary>
-        /// Bench classes a group may contain.
+        /// Classes that are refused whatever their recipes say.
         ///
-        /// A whitelist of exact types rather than an <c>is Building_WorkTable</c> check, because
-        /// the dangerous cases are subclasses: <c>Building_WorkTableAutonomous</c> and its
-        /// descendant <c>Building_MechGestator</c> cast the bill's owner back to their own class
+        /// A safety net rather than the primary rule. <c>Building_WorkTableAutonomous</c> and its
+        /// descendant <c>Building_MechGestator</c> cast a bill's owner back to their own class
         /// (<c>Bill_Autonomous.WorkTable</c>, <c>Bill_Mech.Gestator</c>), so a group anchored on
-        /// one throws an InvalidCastException every frame rather than degrading.
+        /// one throws an InvalidCastException every frame rather than degrading. Their recipes
+        /// already give them away — <c>formingTicks</c> and <c>gestationCycles</c> — so this line
+        /// is redundant today. It is here for the future vanilla subclass whose recipes do not.
         ///
-        /// <c>Building_WorkTable_HeatPush</c> is whitelisted because it is behaviourally identical
-        /// for our purposes — its only override is <c>UsedThisTick</c>, pushing heat — and because
-        /// excluding it would exclude every stove and smithy, which is the case players want this
-        /// mod for in the first place.
-        ///
-        /// The cost is that a modded bench subclassing <c>Building_WorkTable</c> for cosmetics is
-        /// excluded until whitelisted. That is the right way round: a missing gizmo is a feature
-        /// request, a per-frame exception is a bug report.
+        /// Assignability, not exact type, because the point is to catch descendants.
         /// </summary>
-        private static readonly HashSet<Type> GroupableBenchClasses = new HashSet<Type>
+        private static bool IsAlwaysRefusedClass(Type thingClass)
         {
-            typeof(Building_WorkTable),
-            typeof(Building_WorkTable_HeatPush),
-        };
+            return thingClass != null
+                && typeof(Building_WorkTableAutonomous).IsAssignableFrom(thingClass);
+        }
+
+        /// <summary>
+        /// The recipe shapes of a def, in the form <see cref="RecipeGate"/> reasons about.
+        /// </summary>
+        private static List<RecipeShape> ShapesOf(ThingDef def)
+        {
+            List<RecipeDef> recipes = def?.AllRecipes;
+            if (recipes == null)
+            {
+                return null;
+            }
+
+            List<RecipeShape> shapes = new List<RecipeShape>(recipes.Count);
+            foreach (RecipeDef recipe in recipes)
+            {
+                shapes.Add(new RecipeShape(
+                    recipe.UsesUnfinishedThing,
+                    recipe.mechResurrection,
+                    recipe.gestationCycles,
+                    recipe.formingTicks));
+            }
+
+            return shapes;
+        }
 
         /// <summary>Whether a Thing is a work table we can safely group.</summary>
         public static bool IsGroupableBench(Thing thing)
         {
-            return thing is Building_WorkTable && GroupableBenchClasses.Contains(thing.GetType());
+            return thing is Building_WorkTable && IsGroupableDef(thing.def);
         }
 
-        /// <summary>Whether a def's benches can be grouped, for comp injection at startup.</summary>
+        /// <summary>
+        /// Whether a def's benches can be grouped — the one rule, used both for comp injection at
+        /// startup and for the link-time check, so the two can never disagree about what is
+        /// groupable. (A bench that got a comp but is then refused at link time would show a gizmo
+        /// that always fails.)
+        ///
+        /// The class test is deliberately an <c>is Building_WorkTable</c> check rather than the
+        /// exact-type whitelist this used to be: what makes a bench dangerous is the bills it can
+        /// hold, and <see cref="RecipeGate"/> answers that from the def's recipes without naming
+        /// any class. See <c>RecipeGate</c> for why that is sound, and <c>DESIGN.md</c> for the
+        /// residual risk it cannot cover.
+        ///
+        /// Note this admits benches that can also make unshareable things — a machining table
+        /// makes both components and guns. That is intentional; the unshareable half is refused
+        /// per bill by <c>Patch_BillStack_AddBill</c>, not per bench.
+        /// </summary>
         public static bool IsGroupableDef(ThingDef def)
         {
-            return def?.thingClass != null && GroupableBenchClasses.Contains(def.thingClass);
+            Type thingClass = def?.thingClass;
+            if (thingClass == null || !typeof(Building_WorkTable).IsAssignableFrom(thingClass))
+            {
+                return false;
+            }
+
+            if (IsAlwaysRefusedClass(thingClass) || IsExcludedByPlayer(thingClass))
+            {
+                return false;
+            }
+
+            return RecipeGate.AnyMakePlainProductionBill(ShapesOf(def));
+        }
+
+        /// <summary>
+        /// Whether the player has named this class in the exclusion setting.
+        ///
+        /// The parse is cached against the raw string because this is asked once per def at
+        /// startup and again on every link; re-splitting a string the player edits once a year is
+        /// the kind of waste that shows up in someone's load-time profile.
+        /// </summary>
+        private static bool IsExcludedByPlayer(Type thingClass)
+        {
+            string raw = WorkbenchGroupsMod.Settings?.excludedBenchClasses;
+            if (string.IsNullOrEmpty(raw))
+            {
+                return false;
+            }
+
+            if (raw != cachedExclusionSource)
+            {
+                cachedExclusionSource = raw;
+                cachedExclusions = ClassExclusionList.Parse(raw);
+            }
+
+            return ClassExclusionList.Excludes(cachedExclusions, thingClass.FullName, thingClass.Name);
         }
 
         /// <summary>

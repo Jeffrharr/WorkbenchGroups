@@ -29,11 +29,33 @@ namespace WorkbenchGroups
         /// </summary>
         public bool isolateIngredientMute = true;
 
+        /// <summary>
+        /// Bench <c>thingClass</c> names the player wants left ungrouped, separated by commas or
+        /// newlines. Matched against both the qualified and the bare name.
+        ///
+        /// This is the escape hatch for the one thing the eligibility rule cannot see. Benches are
+        /// admitted on the strength of their recipes, which is what decides the bill types we have
+        /// to handle — but a modded bench class can still cast <c>billStack.billGiver</c> to its
+        /// own type inside its own code, and no rule over defs can detect that before it throws.
+        /// Naming the class here is a fix the player can apply the same evening, rather than one
+        /// they wait a release for.
+        ///
+        /// Free text rather than a list of picked types because the failure hands them the name:
+        /// it is in the stack trace they are already looking at.
+        /// </summary>
+        public string excludedBenchClasses = "";
+
         public override void ExposeData()
         {
             base.ExposeData();
             Scribe_Values.Look(ref preventOvershoot, "preventOvershoot", defaultValue: true);
             Scribe_Values.Look(ref isolateIngredientMute, "isolateIngredientMute", defaultValue: true);
+            Scribe_Values.Look(ref excludedBenchClasses, "excludedBenchClasses", defaultValue: "");
+
+            if (Scribe.mode == LoadSaveMode.PostLoadInit && excludedBenchClasses == null)
+            {
+                excludedBenchClasses = "";
+            }
         }
     }
 }

@@ -42,6 +42,16 @@ namespace WorkbenchGroups
                 ref Settings.isolateIngredientMute,
                 "WBG_SettingIsolateMuteTip".Translate());
 
+            listing.Gap();
+
+            // Takes effect on restart, not immediately: the comp is injected into defs at startup,
+            // so a bench that already has one keeps it for this session. Said in the label rather
+            // than left for the player to discover, because "I excluded it and nothing changed"
+            // is the bug report this setting exists to prevent.
+            listing.Label("WBG_SettingExcludedClasses".Translate());
+            listing.Label("WBG_SettingExcludedClassesTip".Translate());
+            Settings.excludedBenchClasses = listing.TextEntry(Settings.excludedBenchClasses ?? "", 3);
+
             listing.End();
         }
     }
