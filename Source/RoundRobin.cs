@@ -55,6 +55,29 @@ namespace WorkbenchGroups
         }
 
         /// <summary>
+        /// Replaces the remembered ordering with the list as it currently stands.
+        ///
+        /// Called when the player drags a bill while round robin is running (see
+        /// <c>Patch_BillStack_Reorder</c>). The snapshot taken on the way in cannot know about a
+        /// drag made afterwards, so without this, switching back to "in order" would discard the
+        /// arrangement the player had just made and restore a older one.
+        /// </summary>
+        public static void ResnapshotCanonicalOrder(CompBillGroup anchorComp)
+        {
+            BillStack stack = anchorComp?.Bench?.billStack;
+            if (stack == null)
+            {
+                return;
+            }
+
+            anchorComp.CanonicalOrderIds.Clear();
+            foreach (Bill bill in stack.Bills)
+            {
+                anchorComp.CanonicalOrderIds.Add(bill.GetUniqueLoadID());
+            }
+        }
+
+        /// <summary>
         /// Snapshots the player's ordering when round robin is switched on, and puts it back when
         /// switched off. Without this, trying the mode out permanently scrambles their priorities.
         /// </summary>

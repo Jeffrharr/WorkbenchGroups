@@ -10,8 +10,9 @@
   <WBG_CommandSelectLinked>Select linked stations</WBG_CommandSelectLinked>
   <WBG_CommandSelectLinkedDesc>Select every station sharing this list of work orders.</WBG_CommandSelectLinkedDesc>
 
-  <WBG_CommandRoundRobin>Round robin</WBG_CommandRoundRobin>
-  <WBG_CommandRoundRobinDesc>Work one item from each order in turn, instead of finishing the top order first.\n\nOrders visibly move to the bottom of the list as they are worked, so the top of the list is always what happens next. Turning this off restores the order you arranged.</WBG_CommandRoundRobinDesc>
+  <WBG_CommandOrdering>Order: {0}</WBG_CommandOrdering>
+  <WBG_CommandOrderingDesc>Choose how this group works through its shared list of orders.\n\nIn order — the standard behaviour. The list is worked top-down, finishing the top order first.\n\nRound robin — one item from each order in turn. Orders visibly move to the bottom of the list as they are worked, so the top of the list is always what happens next. Switching back to "in order" restores the arrangement you had.</WBG_CommandOrderingDesc>
+  <WBG_OrderingCurrent>{0} (current)</WBG_OrderingCurrent>
 
   <WBG_ModeInOrder>in order</WBG_ModeInOrder>
   <WBG_ModeRoundRobin>round robin</WBG_ModeRoundRobin>
