@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using RimWorld;
 using Verse;
@@ -17,21 +18,39 @@ namespace WorkbenchGroups
     public static class BenchEligibility
     {
         /// <summary>
-        /// Whether a Thing is a work table we can safely group.
+        /// Bench classes a group may contain.
         ///
-        /// The type test is exact rather than an <c>is</c> check because
-        /// <c>Building_WorkTableAutonomous</c> and <c>Building_MechGestator</c> derive from
-        /// <c>Building_WorkTable</c> and then cast the bill's owner back to themselves
-        /// (<c>Bill_Autonomous.WorkTable</c>, <c>Bill_Mech.Gestator</c>). An anchor of the wrong
-        /// concrete class turns those into an InvalidCastException on every draw.
+        /// A whitelist of exact types rather than an <c>is Building_WorkTable</c> check, because
+        /// the dangerous cases are subclasses: <c>Building_WorkTableAutonomous</c> and its
+        /// descendant <c>Building_MechGestator</c> cast the bill's owner back to their own class
+        /// (<c>Bill_Autonomous.WorkTable</c>, <c>Bill_Mech.Gestator</c>), so a group anchored on
+        /// one throws an InvalidCastException every frame rather than degrading.
         ///
-        /// Modded benches that subclass <c>Building_WorkTable</c> purely for cosmetics are the
-        /// cost of this rule: they are excluded until whitelisted. That is the right way round —
-        /// a missing gizmo is a feature request, a per-frame exception is a bug report.
+        /// <c>Building_WorkTable_HeatPush</c> is whitelisted because it is behaviourally identical
+        /// for our purposes — its only override is <c>UsedThisTick</c>, pushing heat — and because
+        /// excluding it would exclude every stove and smithy, which is the case players want this
+        /// mod for in the first place.
+        ///
+        /// The cost is that a modded bench subclassing <c>Building_WorkTable</c> for cosmetics is
+        /// excluded until whitelisted. That is the right way round: a missing gizmo is a feature
+        /// request, a per-frame exception is a bug report.
         /// </summary>
+        private static readonly HashSet<Type> GroupableBenchClasses = new HashSet<Type>
+        {
+            typeof(Building_WorkTable),
+            typeof(Building_WorkTable_HeatPush),
+        };
+
+        /// <summary>Whether a Thing is a work table we can safely group.</summary>
         public static bool IsGroupableBench(Thing thing)
         {
-            return thing is Building_WorkTable && thing.GetType() == typeof(Building_WorkTable);
+            return thing is Building_WorkTable && GroupableBenchClasses.Contains(thing.GetType());
+        }
+
+        /// <summary>Whether a def's benches can be grouped, for comp injection at startup.</summary>
+        public static bool IsGroupableDef(ThingDef def)
+        {
+            return def?.thingClass != null && GroupableBenchClasses.Contains(def.thingClass);
         }
 
         /// <summary>

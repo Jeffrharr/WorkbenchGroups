@@ -13,6 +13,13 @@
     <Deterministic>true</Deterministic>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Probes reference RimWorldTestHarness, a dev-only tool. Shipping them would make a
+         dev dependency a runtime dependency of a player-facing mod. TestMod/ compiles these
+         exact files into a separate, unpublished assembly instead. -->
+    <Compile Remove="Probes/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" />
     <!-- Reference Harmony for compiling patches, but never copy 0Harmony.dll into the mod:
          RimWorld already provides it via brrainz.harmony, and shipping a second copy risks a

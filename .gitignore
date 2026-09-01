@@ -2,3 +2,5 @@
 Source/obj/
 Tests/**/obj/
 Tests/**/bin/
+TestMod/obj/
+TestMod/1.6/Assemblies/

@@ -1,0 +1,20 @@
+{
+  "name": "overshoot_guard",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "14", "height": "10" } },
+    { "type": "PlaceThings", "args": { "def": "ElectricStove", "layout": "cells", "cells": "-3,0; 3,0", "rot": "South" } },
+
+    { "type": "WbgLinkBenches", "args": { "def": "ElectricStove", "limit": "2", "mode": "InOrder" } },
+    { "type": "Probe", "args": { "probeName": "wbg_group_size", "expectedValue": "2", "tolerance": "0" } },
+
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealSimple", "count": "1" } },
+
+    { "type": "Probe", "args": { "probeName": "wbg_first_bill_should_do_now", "expectedValue": "1", "tolerance": "0" } },
+
+    { "type": "WbgSimulateBillStart", "args": {} },
+    { "type": "Probe", "args": { "probeName": "wbg_first_bill_should_do_now", "expectedValue": "0", "tolerance": "0" } },
+
+    { "type": "Probe", "args": { "probeName": "wbg_head_bill_slot", "expectedValue": "0", "tolerance": "0" } }
+  ]
+}

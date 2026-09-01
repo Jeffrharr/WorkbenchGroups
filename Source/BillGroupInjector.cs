@@ -42,16 +42,10 @@ namespace WorkbenchGroups
 
         private static bool ShouldInject(ThingDef def)
         {
-            // Exact class match, not an assignability test: Building_WorkTableAutonomous and
-            // Building_MechGestator derive from Building_WorkTable and then cast their bills'
-            // owner back to their own type, so a shared list on those throws every frame rather
-            // than degrading. See BenchEligibility for the full reasoning.
-            if (def.thingClass != typeof(Building_WorkTable))
-            {
-                return false;
-            }
-
-            return !def.AllRecipes.NullOrEmpty();
+            // The class whitelist lives in BenchEligibility so injection and the link-time check
+            // can never disagree about what is groupable — a bench that got a comp but is then
+            // refused at link time would show a gizmo that always fails.
+            return BenchEligibility.IsGroupableDef(def) && !def.AllRecipes.NullOrEmpty();
         }
     }
 }

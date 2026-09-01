@@ -1,0 +1,11 @@
+{
+  "name": "link_smoke",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "12", "height": "8" } },
+    { "type": "PlaceThings", "args": { "def": "ElectricStove", "layout": "cells", "cells": "-2,0; 2,0", "rot": "South" } },
+    { "type": "LookAt", "args": { "zoom": "Closest" } },
+    { "type": "Wait", "args": { "frames": "20" } },
+    { "type": "Screenshot", "args": { "fileName": "link_smoke.png", "hideUi": "false" } }
+  ]
+}

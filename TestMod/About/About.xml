@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>Workbench Groups — Test Probes</name>
+  <author>Joof</author>
+  <packageId>joof.workbenchgroups.probes</packageId>
+  <supportedVersions>
+    <li>1.6</li>
+  </supportedVersions>
+  <description>Dev-only, unpublished. Registers Workbench Groups' IProbe implementations and its
+scenario steps with RimWorldTestHarness so Tests/Scenarios/*.json can assert against them. Never
+load this alongside Workbench Groups in a real playthrough — it exists purely for
+RimWorldTestHarness/Runner/run_test.sh runs.</description>
+  <modDependencies>
+    <li>
+      <packageId>joof.workbenchgroups</packageId>
+      <displayName>Workbench Groups</displayName>
+    </li>
+    <li>
+      <packageId>joof.rimworldtestharness</packageId>
+      <displayName>RimWorldTestHarness</displayName>
+    </li>
+  </modDependencies>
+  <loadAfter>
+    <li>Ludeon.RimWorld</li>
+    <li>brrainz.harmony</li>
+    <li>joof.workbenchgroups</li>
+    <li>joof.rimworldtestharness</li>
+  </loadAfter>
+</ModMetaData>

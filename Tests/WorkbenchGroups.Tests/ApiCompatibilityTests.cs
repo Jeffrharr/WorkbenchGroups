@@ -207,6 +207,24 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void HeatPushWorkTable_IsStillASafeSubclassToWhitelist()
+    {
+        // Stoves and smithies are Building_WorkTable_HeatPush, so excluding it would exclude the
+        // headline use case. It is whitelisted only because its sole override pushes heat and it
+        // adds no state of its own — if it ever gains a field or another override, the whitelist
+        // needs re-examining before it can keep anchoring groups.
+        var type = GetType("RimWorld.Building_WorkTable_HeatPush");
+
+        Assert.That(type, Is.Not.Null, "Building_WorkTable_HeatPush no longer exists");
+        Assert.That(type!.BaseType?.FullName, Is.EqualTo("RimWorld.Building_WorkTable"));
+        Assert.That(type.Fields.Where(f => !f.IsLiteral && !f.IsStatic), Is.Empty,
+            "Building_WorkTable_HeatPush gained instance state — re-check whether it is still safe to group");
+        Assert.That(type.Methods.Where(m => m.IsVirtual && !m.IsConstructor).Select(m => m.Name),
+            Is.EquivalentTo(new[] { "UsedThisTick" }),
+            "Building_WorkTable_HeatPush overrides something new — re-check whether it is still safe to group");
+    }
+
+    [Test]
     public void BillProductionWithUft_StillExists()
     {
         Assert.That(GetType("RimWorld.Bill_ProductionWithUft"), Is.Not.Null,

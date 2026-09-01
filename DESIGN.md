@@ -95,9 +95,17 @@ once per bill per frame while the tab is open.
 
 ## Deliberate exclusions
 
-- **Benches that are not exactly `Building_WorkTable`.** `Building_WorkTableAutonomous`
-  and `Building_MechGestator` derive from it and then cast the bill's owner back to their
-  own class. A wrong-class anchor throws every frame rather than degrading.
+- **Bench classes outside a whitelist.** `Building_WorkTableAutonomous` and its descendant
+  `Building_MechGestator` derive from `Building_WorkTable` and then cast the bill's owner
+  back to their own class, so a wrong-class anchor throws every frame rather than degrading.
+  The whitelist is therefore of exact types, not an `is` check.
+
+  It holds two entries. `Building_WorkTable_HeatPush` is in it because it is behaviourally
+  identical for our purposes — its only override is `UsedThisTick`, pushing heat — and
+  because every vanilla stove and smithy uses it, so excluding it would have excluded the
+  case the mod exists for. That was caught by trying to write the live test, not by
+  reading the class list; a Cecil test now fails if that class gains state or another
+  override. Modded benches that subclass for cosmetics are excluded until whitelisted.
 - **Bills that are not exactly `Bill_Production`.** `Bill_ProductionWithUft` is the
   painful one: an unfinished item left on a non-anchor bench fails `HaulAIUtility`'s
   "inside the owner's footprint" test forever and can never be hauled away.

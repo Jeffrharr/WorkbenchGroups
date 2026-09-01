@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net481</TargetFramework>
+    <AssemblyName>WorkbenchGroups.Probes</AssemblyName>
+    <RootNamespace>WorkbenchGroups.Probes</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <OutputPath>1.6/Assemblies</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+
+    <!-- Overridable so this builds from a git worktree, which sits one directory deeper and would
+         otherwise resolve the default onto a path that does not exist:
+           ./TestMod/build.sh /p:RimWorldTestHarnessDir=/abs/path/to/RimWorldTestHarness -->
+    <RimWorldTestHarnessDir Condition="'$(RimWorldTestHarnessDir)' == ''">../../RimWorldTestHarness</RimWorldTestHarnessDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Linked, not copied: these are the exact files the shipped csproj excludes, so there is
+         only ever one copy on disk and a test cannot pass against source the mod does not use. -->
+    <Compile Include="../Source/Probes/WbgTestState.cs" Link="WbgTestState.cs" />
+    <Compile Include="../Source/Probes/WbgProbes.cs" Link="WbgProbes.cs" />
+    <Compile Include="../Source/Probes/ProbeRegistration.cs" Link="ProbeRegistration.cs" />
+    <Compile Include="../Source/Probes/WbgLinkBenchesStep.cs" Link="WbgLinkBenchesStep.cs" />
+    <Compile Include="../Source/Probes/WbgSimulateStartStep.cs" Link="WbgSimulateStartStep.cs" />
+    <Compile Include="../Source/Probes/WbgAddBillStep.cs" Link="WbgAddBillStep.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="WorkbenchGroups">
+      <HintPath>../1.6/Assemblies/WorkbenchGroups.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="RimWorldTestHarness">
+      <HintPath>$(RimWorldTestHarnessDir)/1.6/Assemblies/RimWorldTestHarness.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="RimWorldTestHarness.Shared">
+      <HintPath>$(RimWorldTestHarnessDir)/1.6/Assemblies/RimWorldTestHarness.Shared.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>
