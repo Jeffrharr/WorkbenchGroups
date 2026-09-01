@@ -28,6 +28,9 @@
   <WBG_RefuseLinkFailed>Something went wrong linking these stations. Their work orders have been put back. See the log for details.</WBG_RefuseLinkFailed>
   <WBG_RefuseTooManyBills>These stations have {0} work orders between them, and a shared list holds at most {1}. Remove some first.</WBG_RefuseTooManyBills>
 
+  <WBG_BillSharedTip>Shared with all {0} stations in this group.</WBG_BillSharedTip>
+  <WBG_BillPinnedTip>Only some stations in this group can make this. It will only be worked at the ones that can.</WBG_BillPinnedTip>
+
   <WBG_SettingPreventOvershoot>Reserve counts when work starts</WBG_SettingPreventOvershoot>
   <WBG_SettingPreventOvershootTip>Stops a linked group overproducing when several workers start the same order at once. With this off, a group behaves like vanilla and can exceed "do X times".\n\nSide effect: an order being worked right now is drawn in the same colour vanilla uses for orders that cannot be started.</WBG_SettingPreventOvershootTip>
 

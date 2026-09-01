@@ -155,6 +155,29 @@ That surfaced the first time the feature was screenshotted, and it is why the vi
 
 The setting is kept rather than dropped because the group-at-a-glance reading is genuinely useful when arranging a workshop rather than editing orders — and because the informative half, the line and the outline, is available either way. `wbg_selected_count` pins the shipped default, so a change that silently turned expansion on would fail rather than quietly take the bills tab away from everyone.
 
+## Marking bills in the list
+
+Each row in a grouped bench's bill list carries a chain icon, drawn by a postfix on
+`Bill.DoInterface` — which ends its own `BeginGroup` before returning and hands back the row's
+rect in absolute coordinates, so the postfix needs no offset arithmetic. It sits left of the
+suspend/copy/delete trio that occupies the row's top-right 76 pixels.
+
+The textures are vanilla's own `LinkStorageSettings` and `UnlinkStorageSettings`, the pair this
+mod's link and unlink gizmos already use. A player who has linked storage knows what a chain
+and a broken chain mean, and that is worth more than a bespoke icon.
+
+Nothing is drawn for an ungrouped bench. "Not linked" is not the same as "linked to nothing":
+a broken chain on every bill of every workbench in a colony that has never used this mod would
+be noise standing in for information, so the icon appears exactly when there is a group for it
+to describe.
+
+**The broken chain is scaffolding and currently unreachable.** Linking requires identical
+recipe sets, so a group cannot hold a bill only some of its benches can work. It is written now
+because per-bill linkage (`TODO.md` item 1) is the change that makes the state reachable, and an
+icon added at the same time as the feature is an icon nobody checked. The rule itself is a pure
+function in `Source/Core/BillLinkage.cs` with unit tests, so what is untested is the three lines
+that put a texture on screen rather than the decision behind them.
+
 ## Known rough edges
 
 - **Bills render pink while being worked.** `Bill.BaseColor` pinks any bill that would not
