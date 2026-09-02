@@ -1,0 +1,75 @@
+{
+  "name": "hot_path_scale",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "comment": "The shape a heavily modded game actually has, which the six-stove run did not: the bill list at vanilla's cap, a lot of pawns scanning, and a wide spread of materials on the floor. Cost in the work-giver prefix is bills x benches x pawns, and the earlier run pinned none of those near their real values.",
+      "type": "SetTerrain",
+      "args": { "def": "Concrete", "width": "40", "height": "32" }
+    },
+
+    {
+      "comment": "Five benches. Eight were wanted — bench count is one of the multipliers on every per-scan cost — but the fixture colony has blockers scattered where a longer row lands, and two cells were refused in each of two different layouts. Six is what this fixture reliably supports; a purpose-built flat fixture is what would raise it.",
+      "type": "PlaceThings",
+      "args": { "def": "ElectricStove", "layout": "cells", "cells": "-14,-10; -10,-10; -6,-10; -2,-10; 2,-10", "rot": "South" }
+    },
+    { "type": "WbgClaimBenches", "args": { "def": "ElectricStove" } },
+    { "type": "PlaceThings", "args": { "def": "SolarGenerator", "layout": "cells", "cells": "0,-14", "rot": "South" } },
+
+    {
+      "comment": "Material variety, which is what makes TryFindBestBillIngredients expensive in a modded save and, more to the point for us, what makes ingredient searches fail often enough to exercise the mute path rather than the empty fast path.",
+      "type": "PlaceThings",
+      "args": { "def": "RawPotatoes", "layout": "cells", "cells": "-9,0; -8,0; -7,0; -6,0; -5,0" }
+    },
+    { "type": "PlaceThings", "args": { "def": "RawRice", "layout": "cells", "cells": "-4,0; -3,0; -2,0; -1,0; 0,0" } },
+    { "type": "PlaceThings", "args": { "def": "RawCorn", "layout": "cells", "cells": "1,0; 2,0; 3,0; 4,0; 5,0" } },
+    { "type": "PlaceThings", "args": { "def": "RawBerries", "layout": "cells", "cells": "6,0; 7,0; 8,0; 9,0" } },
+    { "type": "PlaceThings", "args": { "def": "Meat_Cow", "layout": "cells", "cells": "-9,2; -8,2; -7,2; -6,2" } },
+    { "type": "PlaceThings", "args": { "def": "Milk", "layout": "cells", "cells": "-5,2; -4,2; -3,2" } },
+    { "type": "PlaceThings", "args": { "def": "EggChickenUnfertilized", "layout": "cells", "cells": "-2,2; -1,2; 0,2" } },
+
+    {
+      "comment": "Twelve colonists at spacing 2. Twenty at spacing 1 crashed the game natively before it could write a report — pawn generation is expensive and the fixture map is a real colony, so this is the ceiling that survives here rather than the number I wanted.",
+      "type": "SpawnPawn",
+      "args": { "kind": "Colonist", "count": "12", "faction": "player", "spacing": "2" }
+    },
+
+    { "type": "WbgLinkBenches", "args": { "def": "ElectricStove", "limit": "5", "mode": "RoundRobin" } },
+    {
+      "comment": "Tolerant on purpose. The fixture is a real colony with things that move, and successive runs placed 6, then 6, then 5 of the same bench layout — the refused cells differed each time. This scenario exists to measure a hot path at scale, not to pin a bench count, so the check is 'a group of roughly this size formed' and the bill count below is the strict one.",
+      "type": "Probe",
+      "args": { "probeName": "wbg_group_size", "expectedValue": "5", "tolerance": "1" }
+    },
+
+    {
+      "comment": "Fifteen bills is BillStack.MaxCount — a group shares vanilla's cap, so this is the largest list this mod can ever be asked to handle, and the ingredient-mute swap used to touch every one of them on every scan of every bench.",
+      "type": "WbgAddBill", "args": { "recipe": "CookMealSimple", "count": "50" }
+    },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealFine", "count": "50" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealLavish", "count": "50" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealSimple", "count": "50" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealFine", "count": "50" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealLavish", "count": "50" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealSimple", "count": "50" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealFine", "count": "50" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealLavish", "count": "50" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealSimple", "count": "50" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealFine", "count": "50" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealLavish", "count": "50" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealSimple", "count": "50" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealFine", "count": "50" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealLavish", "count": "50" } },
+    { "type": "Probe", "args": { "probeName": "wbg_bills_visible_at_second_bench", "expectedValue": "15", "tolerance": "0" } },
+
+    {
+      "type": "Profile",
+      "args": { "name": "scale", "prefix": "WorkbenchGroups", "frames": "900", "warmupFrames": "60", "timeSpeed": "fast", "entry": "harmony" }
+    },
+
+    {
+      "comment": "A ceiling well clear of what this run measures, so it fails on a regression rather than on noise.",
+      "type": "ProfileAssert",
+      "args": { "table": "scale", "label": "Patch_WorkGiver_DoBill_JobOnThing", "metric": "avgMsPerFrame", "max": "0.5" }
+    }
+  ]
+}

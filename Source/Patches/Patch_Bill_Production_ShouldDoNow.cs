@@ -69,7 +69,7 @@ namespace WorkbenchGroups.Patches
             }
 
             BillGroupIndex index = BillGroupIndex.For(bench.Map);
-            return index != null && index.GroupSize(bench) >= 2;
+            return index != null && index.IsGrouped(bench);
         }
     }
 }
