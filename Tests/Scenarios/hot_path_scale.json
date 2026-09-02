@@ -14,7 +14,12 @@
       "args": { "def": "ElectricStove", "layout": "cells", "cells": "-14,-10; -10,-10; -6,-10; -2,-10; 2,-10", "rot": "South" }
     },
     { "type": "WbgClaimBenches", "args": { "def": "ElectricStove" } },
-    { "type": "PlaceThings", "args": { "def": "SolarGenerator", "layout": "cells", "cells": "0,-14", "rot": "South" } },
+    {
+      "comment": "Toxifier generators, not solar, and a conduit run to reach the benches. Every capture from earlier scenarios shows 'Not connected to power' on the inspect pane — a lone generator with no conduits powers nothing, so no bench was ever usable and the ingredient-search path was never really exercised. Toxifier rather than solar because it runs regardless of time of day, so the scenario does not silently depend on the fixture's clock.",
+      "type": "PlaceThings",
+      "args": { "def": "PowerConduit", "layout": "cells", "cells": "-15,-9; -14,-9; -13,-9; -12,-9; -11,-9; -10,-9; -9,-9; -8,-9; -7,-9; -6,-9; -5,-9; -4,-9; -3,-9; -2,-9; -1,-9; 0,-9; 1,-9; 2,-9; 3,-9" }
+    },
+    { "type": "PlaceThings", "args": { "def": "ToxifierGenerator", "layout": "cells", "cells": "-15,-7; 2,-7", "rot": "South" } },
 
     {
       "comment": "Material variety, which is what makes TryFindBestBillIngredients expensive in a modded save and, more to the point for us, what makes ingredient searches fail often enough to exercise the mute path rather than the empty fast path.",
@@ -60,6 +65,15 @@
     { "type": "WbgAddBill", "args": { "recipe": "CookMealFine", "count": "50" } },
     { "type": "WbgAddBill", "args": { "recipe": "CookMealLavish", "count": "50" } },
     { "type": "Probe", "args": { "probeName": "wbg_bills_visible_at_second_bench", "expectedValue": "15", "tolerance": "0" } },
+
+    {
+      "comment": "Proof the power actually reaches, since 'Not connected to power' is exactly what this scenario was blind to before. Read the inspect line in the capture, not just the pass/fail.",
+      "type": "WbgFocusBench",
+      "args": { "def": "ElectricStove", "index": "0" }
+    },
+    { "type": "LookAt", "args": { "offset": "-6,-10", "zoom": "14" } },
+    { "type": "Wait", "args": { "frames": "20" } },
+    { "type": "Screenshot", "args": { "fileName": "scale_powered.png", "hideUi": "false" } },
 
     {
       "type": "Profile",
