@@ -18,6 +18,18 @@ namespace WorkbenchGroups
         private readonly Dictionary<Building_WorkTable, List<Building_WorkTable>> membersByAnchor
             = new Dictionary<Building_WorkTable, List<Building_WorkTable>>();
 
+        /// <summary>
+        /// Per anchor, the recipes every member of its group can make.
+        ///
+        /// Exists purely so the bill list's chain icon is an O(1) set lookup. It used to ask the
+        /// question per row per frame by walking the roster and calling
+        /// <c>def.AllRecipes.Contains</c> on each member — a linear scan of up to seventy recipes,
+        /// repeated for every visible row, sixty times a second. Built lazily on first ask and
+        /// thrown away with the rest of the index, so it cannot drift from membership.
+        /// </summary>
+        private readonly Dictionary<Building_WorkTable, HashSet<RecipeDef>> commonRecipesByAnchor
+            = new Dictionary<Building_WorkTable, HashSet<RecipeDef>>();
+
         private bool dirty = true;
 
         private const int ReconcileInterval = 250;
@@ -134,9 +146,69 @@ namespace WorkbenchGroups
             }
         }
 
+        /// <summary>
+        /// Whether every bench in this group can make <paramref name="recipe"/>.
+        ///
+        /// Always true while linking requires identical recipe sets; kept honest rather than
+        /// hardcoded because per-bill linkage (TODO.md) is the change that makes it interesting,
+        /// and a lie left here would become a wrong icon then.
+        /// </summary>
+        public bool AllMembersCanMake(Building_WorkTable anchor, RecipeDef recipe)
+        {
+            if (anchor == null || recipe == null)
+            {
+                return true;
+            }
+
+            EnsureBuilt();
+
+            if (!commonRecipesByAnchor.TryGetValue(anchor, out HashSet<RecipeDef> common))
+            {
+                common = BuildCommonRecipes(anchor);
+                commonRecipesByAnchor[anchor] = common;
+            }
+
+            return common == null || common.Contains(recipe);
+        }
+
+        /// <summary>
+        /// Intersection of every member's recipe list. Null when the group has no members, which
+        /// reads as "no constraint" rather than "nothing allowed".
+        /// </summary>
+        private HashSet<RecipeDef> BuildCommonRecipes(Building_WorkTable anchor)
+        {
+            List<Building_WorkTable> roster = RosterOf(anchor);
+            if (roster.Count == 0)
+            {
+                return null;
+            }
+
+            HashSet<RecipeDef> common = null;
+            foreach (Building_WorkTable member in roster)
+            {
+                List<RecipeDef> recipes = member.def?.AllRecipes;
+                if (recipes == null)
+                {
+                    return null;
+                }
+
+                if (common == null)
+                {
+                    common = new HashSet<RecipeDef>(recipes);
+                }
+                else
+                {
+                    common.IntersectWith(recipes);
+                }
+            }
+
+            return common;
+        }
+
         private void Rebuild()
         {
             membersByAnchor.Clear();
+            commonRecipesByAnchor.Clear();
 
             // PotentialBillGiver is defined as "def has recipes", which is the smallest vanilla
             // list that is guaranteed to contain every bench we could have grouped.

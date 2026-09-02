@@ -56,7 +56,19 @@ namespace WorkbenchGroups.Patches
         public static void Postfix(Bill __instance, Rect __result)
         {
             DrawActiveMarker(__instance, __result);
-            DrawLinkChain(__instance, __result);
+
+            // The index is looked up once and handed down. Map.GetComponent walks the map's
+            // component list, and this postfix runs per visible row per frame, so asking twice a
+            // row was paying for that scan twice for no reason.
+            Building_WorkTable anchor = __instance?.billStack?.billGiver as Building_WorkTable;
+            BillGroupIndex index = anchor != null && anchor.Spawned
+                ? BillGroupIndex.For(anchor.Map)
+                : null;
+
+            if (index != null)
+            {
+                DrawLinkChain(__instance, __result, anchor, index);
+            }
         }
 
         /// <summary>
@@ -91,14 +103,25 @@ namespace WorkbenchGroups.Patches
             Widgets.DrawBoxSolid(row, ActiveWash);
             Widgets.DrawBoxSolid(new Rect(row.x, row.y, EdgeBarWidth, row.height), ActiveAccent);
 
-            TooltipHandler.TipRegion(
-                new Rect(row.x, row.y, EdgeBarWidth * 4f, row.height),
-                "WBG_BillBeingWorked".Translate(workers));
+            // Gated on hover, like vanilla's own paste button does in ITab_Bills.FillTab.
+            // TipRegion takes the built string, so an ungated call formats a translated string per
+            // row per frame for a tooltip almost nobody is looking at — which is most of what this
+            // postfix used to cost.
+            Rect tip = new Rect(row.x, row.y, EdgeBarWidth * 4f, row.height);
+            if (Mouse.IsOver(tip))
+            {
+                TooltipHandler.TipRegion(tip, "WBG_BillBeingWorked".Translate(workers));
+            }
         }
 
-        private static void DrawLinkChain(Bill __instance, Rect __result)
+        private static void DrawLinkChain(
+            Bill bill, Rect __result, Building_WorkTable anchor, BillGroupIndex index)
         {
-            BillLinkState state = StateOf(__instance);
+            int groupSize = index.GroupSize(anchor);
+            BillLinkState state = BillLinkage.StateFor(
+                groupSize > 1,
+                index.AllMembersCanMake(anchor, bill.recipe));
+
             if (state == BillLinkState.NotApplicable)
             {
                 return;
@@ -115,52 +138,13 @@ namespace WorkbenchGroups.Patches
             GUI.DrawTexture(icon, state == BillLinkState.Shared ? SharedTex : PinnedTex);
             GUI.color = previous;
 
-            TooltipHandler.TipRegion(icon, state == BillLinkState.Shared
-                ? "WBG_BillSharedTip".Translate(GroupSizeOf(__instance))
-                : "WBG_BillPinnedTip".Translate());
-        }
-
-        private static BillLinkState StateOf(Bill bill)
-        {
-            return BillLinkage.StateFor(GroupSizeOf(bill) > 1, WorkableEverywhere(bill));
-        }
-
-        private static int GroupSizeOf(Bill bill)
-        {
-            if (!(bill?.billStack?.billGiver is Building_WorkTable bench) || !bench.Spawned)
+            if (Mouse.IsOver(icon))
             {
-                return 0;
+                TooltipHandler.TipRegion(icon, state == BillLinkState.Shared
+                    ? "WBG_BillSharedTip".Translate(groupSize)
+                    : "WBG_BillPinnedTip".Translate());
             }
-
-            return BillGroupIndex.For(bench.Map)?.GroupSize(bench) ?? 0;
         }
 
-        /// <summary>
-        /// Whether every bench in the group can make this bill's recipe.
-        ///
-        /// Always true today: linking requires identical recipe sets, so a group cannot hold a
-        /// bill only some members can work. The broken chain is therefore scaffolding for per-bill
-        /// linkage (see TODO.md item 1), which is the change that makes the state reachable — the
-        /// check is written now so the icon is already in place and already correct when it lands,
-        /// rather than being retrofitted onto a feature that has shipped without it.
-        /// </summary>
-        private static bool WorkableEverywhere(Bill bill)
-        {
-            if (!(bill?.billStack?.billGiver is Building_WorkTable anchor) || bill.recipe == null)
-            {
-                return true;
-            }
-
-            foreach (Building_WorkTable member in BillGroupIndex.For(anchor.Map)?.RosterOf(anchor)
-                ?? new System.Collections.Generic.List<Building_WorkTable>())
-            {
-                if (member.def?.AllRecipes == null || !member.def.AllRecipes.Contains(bill.recipe))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
     }
 }
