@@ -153,6 +153,34 @@ namespace WorkbenchGroups.Probes
     }
 
     /// <summary>
+    /// Which queued bill is currently being worked, by the order the scenario queued them.
+    ///
+    /// The number behind the active-row highlight. Reads the same InFlightTracker the drawing
+    /// does, so a scenario can assert that the row the screenshot highlights is the row a pawn
+    /// actually committed to — a highlight is easy to draw on the wrong bill and impossible to
+    /// notice in a still.
+    /// </summary>
+    public sealed class ActiveBillSlotProbe : IProbe, IProbeMetadata
+    {
+        public string Name => "wbg_active_bill_slot";
+        public string Description => "Index, in the order the scenario queued them, of a bill currently being worked. -1 when none is.";
+        public string Unit => "slot";
+
+        public float Read(Map map)
+        {
+            for (int i = 0; i < WbgTestState.Bills.Count; i++)
+            {
+                if (InFlightTracker.InFlight(WbgTestState.Bills[i]) > 0)
+                {
+                    return i;
+                }
+            }
+
+            return -1f;
+        }
+    }
+
+    /// <summary>
     /// How many things are currently selected.
     ///
     /// Reads <c>Find.Selector</c> rather than anything of ours on purpose: whole-group selection

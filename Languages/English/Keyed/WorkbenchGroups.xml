@@ -29,6 +29,7 @@
   <WBG_RefuseLinkFailed>Something went wrong linking these stations. Their work orders have been put back. See the log for details.</WBG_RefuseLinkFailed>
   <WBG_RefuseTooManyBills>These stations have {0} work orders between them, and a shared list holds at most {1}. Remove some first.</WBG_RefuseTooManyBills>
 
+  <WBG_BillBeingWorked>Being worked right now by {0}.</WBG_BillBeingWorked>
   <WBG_BillSharedTip>Shared with all {0} stations in this group.</WBG_BillSharedTip>
   <WBG_BillPinnedTip>Only some stations in this group can make this. It will only be worked at the ones that can.</WBG_BillPinnedTip>
 

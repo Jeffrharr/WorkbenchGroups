@@ -178,6 +178,24 @@ icon added at the same time as the feature is an icon nobody checked. The rule i
 function in `Source/Core/BillLinkage.cs` with unit tests, so what is untested is the three lines
 that put a texture on screen rather than the decision behind them.
 
+### Which order is being worked
+
+Each row is highlighted — a green left edge and a faint wash — while a pawn is working that bill,
+read from the same `InFlightTracker` the overshoot guard uses.
+
+Vanilla never needed this: it works the list top-down, so the order being worked is the one at
+the top. Round robin breaks that by design, because rotating the started bill to the bottom is
+precisely what makes vanilla's top-down selection produce round-robin behaviour. After the
+rotation the top of the list answers "what happens next", and nothing answers "what is happening
+now".
+
+It also disambiguates a rough edge listed below. The overshoot guard makes a fully-claimed bill
+report "would not start now", and vanilla paints any such bill pink — which reads as *blocked*
+when it means *already being handled*. A green edge on the same row separates those readings.
+
+Drawn on ungrouped benches too: the tracker counts every bill a pawn commits to, so there is no
+reason to withhold an indicator vanilla lacks entirely.
+
 ## Known rough edges
 
 - **Bills render pink while being worked.** `Bill.BaseColor` pinks any bill that would not

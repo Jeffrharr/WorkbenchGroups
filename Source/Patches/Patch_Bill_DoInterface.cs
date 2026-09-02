@@ -7,8 +7,8 @@ using WorkbenchGroups.Core;
 namespace WorkbenchGroups.Patches
 {
     /// <summary>
-    /// Marks each row in a grouped bench's bill list with a chain, so the list says which of its
-    /// orders are shared without the player having to remember what they linked.
+    /// Annotates each row of the bill list: a chain saying whether the order is shared, and a
+    /// highlight saying whether anyone is working it right now.
     ///
     /// Drawn in a postfix because <c>Bill.DoInterface</c> ends its own <c>Widgets.BeginGroup</c>
     /// before returning, and returns the row's rect in absolute coordinates — so by the time this
@@ -36,12 +36,67 @@ namespace WorkbenchGroups.Patches
 
         private const float IconSize = 22f;
 
+        /// <summary>Accent for a bill someone is currently working.</summary>
+        private static readonly Color ActiveAccent = new Color(0.45f, 0.8f, 0.45f, 1f);
+
+        /// <summary>
+        /// Low enough to read as a tint rather than a panel. The row already carries vanilla's
+        /// alternating stripe and, for a claimed bill, vanilla's pink "would not start now"
+        /// colouring, so anything stronger fights two existing signals.
+        /// </summary>
+        private static readonly Color ActiveWash = new Color(0.45f, 0.8f, 0.45f, 0.13f);
+
+        private const float EdgeBarWidth = 3f;
+
         /// <summary>
         /// Left of the delete/copy/suspend trio, which occupy the row's top-right 76 pixels.
         /// </summary>
         private const float RightInset = 100f;
 
         public static void Postfix(Bill __instance, Rect __result)
+        {
+            DrawActiveMarker(__instance, __result);
+            DrawLinkChain(__instance, __result);
+        }
+
+        /// <summary>
+        /// Marks the order a pawn is actually working.
+        ///
+        /// Vanilla never needed this: it works the list top-down, so the order being worked is
+        /// the one at the top. Round robin breaks that — the bill rotates to the bottom the
+        /// moment someone starts it, which is exactly what makes vanilla's selection produce
+        /// round-robin behaviour, and exactly why the top of the list stops answering "what is
+        /// happening now".
+        ///
+        /// It also disambiguates a rough edge this mod already had. The overshoot guard makes a
+        /// fully-claimed bill report "would not start now", and vanilla paints any such bill pink
+        /// — which reads as "blocked" when it means "already being handled". A green edge on the
+        /// same row is the difference between those two readings.
+        ///
+        /// Drawn for ungrouped benches too. The tracker counts every bill a pawn commits to, not
+        /// just grouped ones, so there is no reason to withhold an indicator vanilla lacks
+        /// entirely.
+        /// </summary>
+        private static void DrawActiveMarker(Bill bill, Rect row)
+        {
+            int workers = InFlightTracker.InFlight(bill);
+            if (workers <= 0)
+            {
+                return;
+            }
+
+            // A wash plus a hard left edge, rather than a filled box: the postfix draws after
+            // vanilla has already written the label and the buttons, so anything opaque would
+            // cover them.
+            Widgets.DrawBoxSolid(row, ActiveWash);
+            Widgets.DrawBoxSolid(new Rect(row.x, row.y, EdgeBarWidth, row.height), ActiveAccent);
+
+            TooltipHandler.TipRegion(
+                new Rect(row.x, row.y, EdgeBarWidth * 4f, row.height),
+                "WBG_BillBeingWorked".Translate(workers));
+        }
+
+        private static void DrawLinkChain(Bill __instance, Rect __result)
         {
             BillLinkState state = StateOf(__instance);
             if (state == BillLinkState.NotApplicable)
