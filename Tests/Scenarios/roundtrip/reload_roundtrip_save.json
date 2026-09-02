@@ -59,6 +59,17 @@
       "args": { "probeName": "wbg_selected_count", "expectedValue": "1", "tolerance": "0" }
     },
 
+    {
+      "comment": "Put a pawn on the head bill — which in queue order is still slot 0 at this point — so the active-row highlight has something to mark, then capture it. Without this the indicator is drawn by code no frame has ever exercised.",
+      "type": "WbgSimulateBillStart",
+      "args": {}
+    },
+    { "type": "Probe", "args": { "probeName": "wbg_active_bill_slot", "expectedValue": "0", "tolerance": "0" } },
+    { "type": "WbgFocusBench", "args": { "def": "ElectricStove", "index": "1" } },
+    { "type": "LookAt", "args": { "zoom": "11" } },
+    { "type": "Wait", "args": { "frames": "20" } },
+    { "type": "Screenshot", "args": { "fileName": "seq_5_active_bill.png", "hideUi": "false" } },
+
     { "type": "WbgSaveGame", "args": { "name": "wbg_roundtrip" } },
     { "type": "Probe", "args": { "probeName": "wbg_duplicate_save_ids", "expectedValue": "0", "tolerance": "0" } }
   ]

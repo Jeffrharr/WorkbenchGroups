@@ -20,6 +20,7 @@ namespace WorkbenchGroups.Probes
             ProbeRegistry.Register(new SharedStackIdentityProbe());
             ProbeRegistry.Register(new MemberReportedModeProbe());
             ProbeRegistry.Register(new SelectedCountProbe());
+            ProbeRegistry.Register(new ActiveBillSlotProbe());
             ProbeRegistry.Register(new DuplicateSaveIdProbe());
         }
     }
