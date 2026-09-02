@@ -189,7 +189,43 @@ and enough workers, products come out roughly 1/1/1 rather than 3/0/0.
 remembered per-(bill, bench) tick would let a scenario show that one bench failing an
 ingredient search does not mute the bill at the other.
 
-### 2e. Conflicting mods
+### 2e. Nice Bill Tab compatibility — a planned follow-up, not a bug hunt
+
+The tab-side UI in this mod is drawn by Harmony postfixes, and that is fine alone and fragile
+alongside Nice Bill Tab, which prefixes `ITab_Bills.FillTab` and rebuilds the panel.
+
+**The specific mechanism, so nobody re-derives it:** a Harmony postfix still runs when a prefix
+skips the original. So when Nice Bill Tab replaces the tab, our postfix keeps drawing into a
+panel laid out by someone else. Two things ride on that:
+
+- `Patch_ITab_Bills_FillTab` draws the ordering dropdown at a fixed rect
+  (`168, 2, 190, 26`), chosen as the gap between vanilla's "Add bill" and paste buttons. Under a
+  rebuilt tab that gap may hold something else.
+- `Patch_Bill_DoInterface` (chain icon, active-row highlight) is safer: it postfixes
+  `Bill.DoInterface` and positions everything from the *returned* row rect, so it follows the row
+  wherever the other mod puts it. It only breaks if Nice Bill Tab draws rows without calling
+  `DoInterface` at all.
+
+Neither is a correctness risk — nothing here writes state — so the failure mode is cosmetic
+overlap, not a broken save. That is why the ordering control is *also* reflected in the inspect
+line: a group left in the wrong mode is a preference, not data loss.
+
+**What the work actually is**, once the feature set settles:
+
+1. Get the mod installed. It is not on this machine — `Runner/fetch_mods.sh` pulls a scenario's
+   `requiredMods` from the Workshop via anonymous SteamCMD, which may refuse for a paid app's
+   items; the fallback is subscribing in-game.
+2. Run the existing scenarios with it active and *look at the frames*. Every probe will pass
+   either way, because probes read state and this is entirely a drawing problem — the same trap
+   that hid the unclaimed-bench and stale-Languages failures.
+3. Decide between: detecting a rebuilt tab and skipping our own draw; asking for a rect from a
+   layout helper rather than hardcoding one; or exposing the ordering control somewhere neither
+   mod owns.
+
+Do this after the UI stops moving. Every layout change invalidates the frames, and the whole cost
+of this item is in looking at frames.
+
+### 2f. Conflicting mods, generally
 
 `About.xml` declares seven `loadAfter` entries. Only the baseline load has ever run. At
 minimum, one run with Hauler's Dream and Nice Bill Tab active, asserting the existing
