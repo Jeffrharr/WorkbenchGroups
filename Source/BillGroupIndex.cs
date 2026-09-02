@@ -34,6 +34,18 @@ namespace WorkbenchGroups
         private readonly Dictionary<Building_WorkTable, List<Building_WorkTable>> rosterByAnchor
             = new Dictionary<Building_WorkTable, List<Building_WorkTable>>();
 
+        /// <summary>
+        /// Every bench that is in a group of two or more, anchors included.
+        ///
+        /// Exists so the two hottest paths — the work-giver prefix and the ShouldDoNow postfix —
+        /// can ask "does this bench matter to us" with one hash lookup. Both used to route through
+        /// <c>GroupSize</c> -> <c>AnchorOf</c> -> <c>Thing.GetComp</c>, and GetComp is a linear
+        /// walk of the thing's comp list with a type test per element, run per bench per pawn per
+        /// work scan.
+        /// </summary>
+        private readonly HashSet<Building_WorkTable> groupedBenches
+            = new HashSet<Building_WorkTable>();
+
         /// <summary>Shared empty result, so the ungrouped case allocates nothing at all.</summary>
         private static readonly List<Building_WorkTable> EmptyRoster = new List<Building_WorkTable>();
 
@@ -87,6 +99,21 @@ namespace WorkbenchGroups
         public void SetDirty()
         {
             dirty = true;
+        }
+
+        /// <summary>
+        /// Whether this bench shares its bill list with anyone. One hash lookup — this is the
+        /// question the hot paths actually ask, and the cheapest form of it.
+        /// </summary>
+        public bool IsGrouped(Building_WorkTable bench)
+        {
+            if (bench == null)
+            {
+                return false;
+            }
+
+            EnsureBuilt();
+            return groupedBenches.Contains(bench);
         }
 
         public override void FinalizeInit()
@@ -271,6 +298,7 @@ namespace WorkbenchGroups
             membersByAnchor.Clear();
             commonRecipesByAnchor.Clear();
             rosterByAnchor.Clear();
+            groupedBenches.Clear();
 
             // PotentialBillGiver is defined as "def has recipes", which is the smallest vanilla
             // list that is guaranteed to contain every bench we could have grouped.
@@ -302,6 +330,11 @@ namespace WorkbenchGroups
             }
 
             members.Add(bench);
+
+            // Both ends of the relationship, so the O(1) test covers anchors too — an anchor is
+            // never its own member, so registering only `bench` would leave it looking ungrouped.
+            groupedBenches.Add(bench);
+            groupedBenches.Add(anchor);
         }
     }
 }

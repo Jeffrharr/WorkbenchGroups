@@ -33,8 +33,10 @@ namespace WorkbenchGroups.Patches
                 return;
             }
 
+            // IsGrouped rather than GroupSize: one hash lookup instead of GetComp plus a
+            // dictionary walk, on a method that runs per bench per pawn per work scan.
             BillGroupIndex index = BillGroupIndex.For(bench.Map);
-            if (index == null || index.GroupSize(bench) < 2)
+            if (index == null || !index.IsGrouped(bench))
             {
                 return;
             }

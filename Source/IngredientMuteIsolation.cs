@@ -25,9 +25,25 @@ namespace WorkbenchGroups
         private static readonly Dictionary<Bill, Dictionary<int, int>> mutes
             = new Dictionary<Bill, Dictionary<int, int>>();
 
+        /// <summary>
+        /// The latest tick any remembered mute runs to, across every bill and bench.
+        ///
+        /// This one integer is what makes the common case free. A mute is only meaningful while it
+        /// is in the future — vanilla's test is <c>TicksGame &lt;= nextTickToSearchForIngredients</c>
+        /// — so once every remembered mute has expired, the values sitting in the shared field are
+        /// all in the past and therefore harmless. Nothing has to be loaded, and nothing has to be
+        /// cleaned up: expiry does it for us.
+        ///
+        /// Colonies spend almost all of their time in that state, because ingredients are usually
+        /// available. Before this, every scan of every grouped bench paid two dictionary lookups
+        /// per bill on the way in and a lookup plus a write on the way out, to shuffle zeroes
+        /// around.
+        /// </summary>
+        private static int latestMuteTick;
+
         public static void LoadInto(BillStack stack, int benchId)
         {
-            if (stack == null)
+            if (stack == null || !AnyMuteOutstanding())
             {
                 return;
             }
@@ -38,6 +54,16 @@ namespace WorkbenchGroups
             }
         }
 
+        /// <summary>
+        /// Reads back whatever vanilla decided during the scan.
+        ///
+        /// Cannot be skipped the way <see cref="LoadInto"/> can: a mute vanilla sets *during* this
+        /// scan is sitting in the shared field, and leaving it there is the original bug — one
+        /// bench's failed ingredient search muting the bill for every other member.
+        ///
+        /// It can be made nearly free, though. The common case reads one int per bill and compares
+        /// it, touching no dictionary at all; only a bill that is actually muted costs a lookup.
+        /// </summary>
         public static void StoreFrom(BillStack stack, int benchId)
         {
             if (stack == null)
@@ -45,9 +71,41 @@ namespace WorkbenchGroups
                 return;
             }
 
+            int now = Find.TickManager.TicksGame;
+            bool hadOutstanding = AnyMuteOutstanding();
+
             foreach (Bill bill in stack.Bills)
             {
-                Remember(bill, benchId, bill.nextTickToSearchForIngredients);
+                int tick = bill.nextTickToSearchForIngredients;
+
+                // A mute in the future is the only thing worth recording. A past value is either
+                // one we wrote and time has retired, or a zero nobody set — both are no-ops for
+                // vanilla's check, so storing them would be bookkeeping for its own sake.
+                if (tick > now)
+                {
+                    Remember(bill, benchId, tick);
+                }
+                else if (hadOutstanding)
+                {
+                    // Only worth clearing when something could actually be remembered; when
+                    // nothing was outstanding this branch would be a dictionary miss per bill.
+                    Forget(bill, benchId);
+                }
+            }
+        }
+
+        private static bool AnyMuteOutstanding()
+        {
+            return latestMuteTick > Find.TickManager.TicksGame;
+        }
+
+        private static void Forget(Bill bill, int benchId)
+        {
+            if (mutes.TryGetValue(bill, out Dictionary<int, int> perBench)
+                && perBench.Remove(benchId)
+                && perBench.Count == 0)
+            {
+                mutes.Remove(bill);
             }
         }
 
@@ -79,6 +137,11 @@ namespace WorkbenchGroups
             }
 
             perBench[benchId] = tick;
+
+            if (tick > latestMuteTick)
+            {
+                latestMuteTick = tick;
+            }
         }
     }
 }
