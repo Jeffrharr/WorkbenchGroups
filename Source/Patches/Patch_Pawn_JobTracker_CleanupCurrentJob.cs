@@ -1,5 +1,6 @@
 using System.Reflection;
 using HarmonyLib;
+using Verse;
 using Verse.AI;
 
 namespace WorkbenchGroups.Patches
@@ -23,11 +24,11 @@ namespace WorkbenchGroups.Patches
             return AccessTools.Method(typeof(Pawn_JobTracker), "CleanupCurrentJob");
         }
 
-        public static void Prefix(Pawn_JobTracker __instance)
+        public static void Prefix(Pawn_JobTracker __instance, Pawn ___pawn)
         {
             if (__instance.curJob?.bill != null)
             {
-                InFlightTracker.Decrement(__instance.curJob.bill);
+                InFlightTracker.Decrement(__instance.curJob.bill, ___pawn);
             }
         }
     }

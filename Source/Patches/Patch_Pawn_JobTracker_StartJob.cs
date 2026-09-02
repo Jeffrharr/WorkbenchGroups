@@ -1,4 +1,5 @@
 using HarmonyLib;
+using Verse;
 using Verse.AI;
 
 namespace WorkbenchGroups.Patches
@@ -19,14 +20,17 @@ namespace WorkbenchGroups.Patches
     [HarmonyPatch(typeof(Pawn_JobTracker), nameof(Pawn_JobTracker.StartJob))]
     public static class Patch_Pawn_JobTracker_StartJob
     {
-        public static void Postfix(Job newJob)
+        // ___pawn is Harmony's injection of Pawn_JobTracker's protected `pawn` field. The tracker
+        // records which pawns are working a bill, not just how many, so its periodic repair costs
+        // one CurJob read per active worker instead of a scan of every pawn on the map.
+        public static void Postfix(Job newJob, Pawn ___pawn)
         {
             if (newJob?.bill == null)
             {
                 return;
             }
 
-            InFlightTracker.Increment(newJob.bill);
+            InFlightTracker.Increment(newJob.bill, ___pawn);
             RoundRobin.NotifyBillStarted(newJob.bill);
         }
     }

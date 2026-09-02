@@ -53,8 +53,21 @@ namespace WorkbenchGroups.Patches
         /// </summary>
         private const float RightInset = 100f;
 
+        /// <summary>
+        /// Frame on which this postfix last ran, read by <see cref="Patch_ITab_Bills_FillTab"/>.
+        ///
+        /// Our row annotations only appear if something actually calls <c>Bill.DoInterface</c>.
+        /// A mod that draws its own rows instead would take the chain icons and the active-bill
+        /// highlight away with no error anywhere — the tab would simply look like the plain
+        /// vanilla one, which is indistinguishable from the mod being off. Recording the frame
+        /// lets the tab patch notice and say so once.
+        /// </summary>
+        public static int LastDrawnFrame { get; private set; } = -1;
+
         public static void Postfix(Bill __instance, Rect __result)
         {
+            LastDrawnFrame = Time.frameCount;
+
             DrawActiveMarker(__instance, __result);
 
             // The index is looked up once and handed down. Map.GetComponent walks the map's
