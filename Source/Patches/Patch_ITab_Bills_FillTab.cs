@@ -80,7 +80,13 @@ namespace WorkbenchGroups.Patches
                 Find.WindowStack.Add(new FloatMenu(OrderingOptions(anchorComp, current)));
             }
 
-            TooltipHandler.TipRegion(ButtonRect, "WBG_CommandOrderingDesc".Translate());
+            // Hover-gated for the same reason as the bill rows: this runs every frame the tab is
+            // open, and building a paragraph-length translated string for a tooltip nobody has
+            // asked for was a measurable share of this postfix.
+            if (Mouse.IsOver(ButtonRect))
+            {
+                TooltipHandler.TipRegion(ButtonRect, "WBG_CommandOrderingDesc".Translate());
+            }
         }
 
         /// <summary>

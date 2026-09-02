@@ -238,7 +238,9 @@ probes still pass — those two are the ones that rewrite the surfaces we depend
 - `BillGroupGizmos.OrderingCommand` uses `TexCommand.RearmTrap` as a placeholder icon.
 - The unlink gizmo acts on the whole selection; confirm that reads correctly when benches
   from two different groups are selected at once.
-- `InFlightTracker.Reconcile` is called every 250 ticks from `BillGroupIndex`. Its cost has
-  never been profiled — run a scenario under `--profiler` and quote the table before
-  claiming it is free.
+- **Profile an unpaused window.** Every profiled run so far reported `PausedFrames == 196 of
+  196`, so tick-driven work is absent from the tables through no merit of its own. That covers
+  `InFlightTracker.Reconcile` (every 250 ticks) and, more importantly,
+  `Patch_Bill_Production_ShouldDoNow` under real work-giver scans — its measured cost so far is
+  only the bill tab redrawing it. Needs an explicit `Profile` step with a `timeSpeed` arg.
 - No `Preview.png` in `About/`, and no `PublishedFileId.txt` (not published).
