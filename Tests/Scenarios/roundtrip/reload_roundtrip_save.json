@@ -1,0 +1,65 @@
+{
+  "name": "reload_roundtrip_save",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "comment": "Phase A of the reload round-trip. Builds a group, gives it bills, and saves. The assertions here are only that the group was real before saving — everything this phase exists for is checked by reload_roundtrip_load, in a second game load, against the file this writes. Run both with Tests/run_roundtrip.sh.",
+      "type": "SetTerrain",
+      "args": { "def": "Concrete", "width": "14", "height": "10" }
+    },
+    { "type": "PlaceThings", "args": { "def": "ElectricStove", "layout": "cells", "cells": "-3,0; 3,0", "rot": "South" } },
+    {
+      "comment": "PlaceThings spawns buildings unowned, and BillGroupGizmos requires Faction.OfPlayer — so without this the captures show vanilla's Claim button and none of this mod's gizmos at all.",
+      "type": "WbgClaimBenches",
+      "args": { "def": "ElectricStove" }
+    },
+
+    {
+      "comment": "The 'before' frame: the second stove's own bills tab, empty, while it is still unlinked. Taken first on purpose — the harness's first capture in a scenario carries the HUD whatever hideUi says, and this is the one frame where that costs nothing.",
+      "type": "WbgFocusBench",
+      "args": { "def": "ElectricStove", "index": "1" }
+    },
+    { "type": "LookAt", "args": { "zoom": "11" } },
+    { "type": "Wait", "args": { "frames": "20" } },
+    { "type": "Screenshot", "args": { "fileName": "seq_1_before_link.png", "hideUi": "false" } },
+
+    { "type": "WbgLinkBenches", "args": { "def": "ElectricStove", "limit": "2", "mode": "RoundRobin" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealSimple", "count": "5" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealFine", "count": "5" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealLavish", "count": "5" } },
+
+    { "type": "Probe", "args": { "probeName": "wbg_group_size", "expectedValue": "2", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "wbg_bills_visible_at_second_bench", "expectedValue": "3", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "wbg_stacks_reference_equal", "expectedValue": "1", "tolerance": "0" } },
+
+    {
+      "comment": "Round robin is switched on before saving so the load side proves the group's mode survived too, not just its membership. A handover or a load that resets a group to in-order is a silent behaviour change nothing else would catch.",
+      "type": "Probe",
+      "args": { "probeName": "wbg_ordering_mode", "expectedValue": "1", "tolerance": "0" }
+    },
+
+    {
+      "comment": "What a follower's inspect pane tells the player, as opposed to what the anchor's comp holds. These disagreed until the mode line was made to read the anchor: every non-anchor bench in a round-robin group said 'in order'. Asserted on both sides of the save, since the follower's own copy of the field is what a load would restore.",
+      "type": "Probe",
+      "args": { "probeName": "wbg_member_reported_mode", "expectedValue": "1", "tolerance": "0" }
+    },
+
+    {
+      "comment": "The 'after' frame: the same second stove, still owning no bills of its own, now showing the group's three. This is the field swap, which is otherwise only visible as a probe number.",
+      "type": "WbgFocusBench",
+      "args": { "def": "ElectricStove", "index": "1" }
+    },
+    { "type": "LookAt", "args": { "zoom": "11" } },
+    { "type": "Wait", "args": { "frames": "20" } },
+    { "type": "Screenshot", "args": { "fileName": "seq_2_after_link.png", "hideUi": "false" } },
+
+    {
+      "comment": "WbgFocusBench selected exactly one bench, and whole-group selection ships off, so one is the expected count. This pins the default rather than the feature: a change that silently turned expansion on would take the bills tab away from every player, since RimWorld shows no ITab for a multi-selection.",
+      "type": "Probe",
+      "args": { "probeName": "wbg_selected_count", "expectedValue": "1", "tolerance": "0" }
+    },
+
+    { "type": "WbgSaveGame", "args": { "name": "wbg_roundtrip" } },
+    { "type": "Probe", "args": { "probeName": "wbg_duplicate_save_ids", "expectedValue": "0", "tolerance": "0" } }
+  ]
+}

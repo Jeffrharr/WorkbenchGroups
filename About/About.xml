@@ -30,10 +30,10 @@ Q. Can I remove it from an existing save?
 A. Yes. Every station keeps a valid bill list — the group's bills stay on the station you linked from, and the others get back whatever they had before linking. No errors.
 
 Q. Does it work with modded workbenches?
-A. Yes, as long as they are ordinary work tables. Mech gestators, subcores and other self-running benches are deliberately excluded because their bills are tied to their own building.
+A. Yes. Stations are judged by what they make, not by how they were coded, so a modded work table is linkable without this mod knowing anything about it. Mech gestators, subcore encoders and other self-running stations are excluded because their orders are tied to their own building; if a modded station misbehaves when linked, you can name its class in the mod settings and it will be left alone.
 
 Q. Known limitations?
-A. A group shares vanilla's cap of 15 bills, rather than 15 per station. Unfinished items (anything crafted over multiple sessions, like some modded recipes) cannot be shared and are refused at link time.
+A. A group shares vanilla's cap of 15 bills, rather than 15 per station. Orders that leave an unfinished item behind — weapons, armour, apparel, sculptures — cannot be shared: they are refused at link time, and refused if you add one to a group's list afterwards. So a linked machining table can share its component and shell orders but not its gun orders.
 
 Q. Was AI used?
 A. Yes — this mod was written with Claude, reviewed and tested by a human.</description>
@@ -50,6 +50,7 @@ A. Yes — this mod was written with Claude, reviewed and tested by a human.</de
     <li>Ludeon.RimWorld.Ideology</li>
     <li>Ludeon.RimWorld.Biotech</li>
     <li>Ludeon.RimWorld.Anomaly</li>
+    <li>Ludeon.RimWorld.Odyssey</li>
     <li>brrainz.harmony</li>
 
     <!-- Hauler's Dream postfixes WorkGiver_DoBill.JobOnThing three times and replaces the

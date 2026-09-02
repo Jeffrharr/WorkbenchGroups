@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using RimWorld;
 using Verse;
@@ -93,6 +94,29 @@ namespace WorkbenchGroups
                 return;
             }
 
+            // Snapshotted before anything moves. Linking is the one operation that empties several
+            // benches before refilling one, so a throw partway through is the one failure that can
+            // lose the player's work orders outright — and the throw we cannot rule out is exactly
+            // the modded-bench case the eligibility rule admits on trust (see BenchEligibility).
+            LinkSnapshot snapshot = LinkSnapshot.Take(roster);
+
+            try
+            {
+                InstallSharedStack(roster, anchor, allBills);
+            }
+            catch (Exception ex)
+            {
+                snapshot.Restore();
+                Log.Error($"[Workbench Groups] Linking failed and was rolled back: {ex}");
+                Messages.Message("WBG_RefuseLinkFailed".Translate(), MessageTypeDefOf.RejectInput, false);
+            }
+
+            BillGroupIndex.For(anchor.Map)?.SetDirty();
+        }
+
+        private static void InstallSharedStack(
+            List<Building_WorkTable> roster, Building_WorkTable anchor, List<Bill> allBills)
+        {
             foreach (Building_WorkTable bench in roster)
             {
                 bench.GetComp<CompBillGroup>()?.ClearAnchor();
@@ -115,8 +139,69 @@ namespace WorkbenchGroups
                     bench.GetComp<CompBillGroup>()?.SetAnchor(anchor);
                 }
             }
+        }
 
-            BillGroupIndex.For(anchor.Map)?.SetDirty();
+        /// <summary>
+        /// Which stack each bench held and what was in it, so a failed link can be undone.
+        ///
+        /// Restoring puts the original stack object back on the bench and refills it with the same
+        /// Bill instances. Reusing the instances rather than copying them matters: a bill being
+        /// worked is referenced by the pawn's job, and a fresh copy would leave that job pointing
+        /// at an orphan.
+        /// </summary>
+        private readonly struct LinkSnapshot
+        {
+            private readonly List<Building_WorkTable> benches;
+            private readonly List<BillStack> stacks;
+            private readonly List<List<Bill>> contents;
+
+            private LinkSnapshot(
+                List<Building_WorkTable> benches, List<BillStack> stacks, List<List<Bill>> contents)
+            {
+                this.benches = benches;
+                this.stacks = stacks;
+                this.contents = contents;
+            }
+
+            public static LinkSnapshot Take(List<Building_WorkTable> roster)
+            {
+                List<Building_WorkTable> benches = new List<Building_WorkTable>(roster.Count);
+                List<BillStack> stacks = new List<BillStack>(roster.Count);
+                List<List<Bill>> contents = new List<List<Bill>>(roster.Count);
+
+                foreach (Building_WorkTable bench in roster)
+                {
+                    benches.Add(bench);
+                    stacks.Add(bench.billStack);
+                    contents.Add(bench.billStack == null
+                        ? new List<Bill>()
+                        : new List<Bill>(bench.billStack.Bills));
+                }
+
+                return new LinkSnapshot(benches, stacks, contents);
+            }
+
+            public void Restore()
+            {
+                for (int i = 0; i < benches.Count; i++)
+                {
+                    Building_WorkTable bench = benches[i];
+                    BillStack stack = stacks[i];
+
+                    // ClearAnchor first: whatever half-installed redirect exists has to come off
+                    // before the original stack goes back, or withdrawing it later would undo the
+                    // restore.
+                    bench.GetComp<CompBillGroup>()?.ClearAnchor();
+
+                    if (stack != null)
+                    {
+                        stack.billGiver = bench;
+                        stack.Bills.Clear();
+                        stack.Bills.AddRange(contents[i]);
+                        bench.billStack = stack;
+                    }
+                }
+            }
         }
 
         /// <summary>

@@ -10,8 +10,9 @@
   <WBG_CommandSelectLinked>Select linked stations</WBG_CommandSelectLinked>
   <WBG_CommandSelectLinkedDesc>Select every station sharing this list of work orders.</WBG_CommandSelectLinkedDesc>
 
-  <WBG_CommandRoundRobin>Round robin</WBG_CommandRoundRobin>
-  <WBG_CommandRoundRobinDesc>Work one item from each order in turn, instead of finishing the top order first.\n\nOrders visibly move to the bottom of the list as they are worked, so the top of the list is always what happens next. Turning this off restores the order you arranged.</WBG_CommandRoundRobinDesc>
+  <WBG_CommandOrdering>Order: {0}</WBG_CommandOrdering>
+  <WBG_CommandOrderingDesc>Choose how this group works through its shared list of orders.\n\nIn order — the standard behaviour. The list is worked top-down, finishing the top order first.\n\nRound robin — one item from each order in turn. Orders visibly move to the bottom of the list as they are worked, so the top of the list is always what happens next. Switching back to "in order" restores the arrangement you had.</WBG_CommandOrderingDesc>
+  <WBG_OrderingCurrent>{0} (current)</WBG_OrderingCurrent>
 
   <WBG_ModeInOrder>in order</WBG_ModeInOrder>
   <WBG_ModeRoundRobin>round robin</WBG_ModeRoundRobin>
@@ -20,16 +21,27 @@
   <WBG_MessageLinked>Linked {0} work stations.</WBG_MessageLinked>
 
   <WBG_RefuseSelectTwo>Select at least two work stations to link.</WBG_RefuseSelectTwo>
-  <WBG_RefuseNotGroupable>{0} cannot be linked. Only ordinary work tables can share work orders.</WBG_RefuseNotGroupable>
+  <WBG_RefuseNotGroupable>{0} cannot be linked. Stations that build things over time, like mech gestators, keep their own work orders.</WBG_RefuseNotGroupable>
   <WBG_RefuseDifferentMaps>Work stations must be on the same map to be linked.</WBG_RefuseDifferentMaps>
   <WBG_RefuseDifferentRecipes>{0} and {1} do not make the same things, so they cannot share work orders.</WBG_RefuseDifferentRecipes>
   <WBG_RefuseUnshareableBill>"{0}" on {1} cannot be shared. Orders that leave an unfinished item behind must stay on one station.</WBG_RefuseUnshareableBill>
+  <WBG_RefuseAddUnshareableBill>"{0}" cannot be added to a shared list. Orders that leave an unfinished item behind must stay on one station — unlink this one first.</WBG_RefuseAddUnshareableBill>
+  <WBG_RefuseLinkFailed>Something went wrong linking these stations. Their work orders have been put back. See the log for details.</WBG_RefuseLinkFailed>
   <WBG_RefuseTooManyBills>These stations have {0} work orders between them, and a shared list holds at most {1}. Remove some first.</WBG_RefuseTooManyBills>
+
+  <WBG_BillSharedTip>Shared with all {0} stations in this group.</WBG_BillSharedTip>
+  <WBG_BillPinnedTip>Only some stations in this group can make this. It will only be worked at the ones that can.</WBG_BillPinnedTip>
 
   <WBG_SettingPreventOvershoot>Reserve counts when work starts</WBG_SettingPreventOvershoot>
   <WBG_SettingPreventOvershootTip>Stops a linked group overproducing when several workers start the same order at once. With this off, a group behaves like vanilla and can exceed "do X times".\n\nSide effect: an order being worked right now is drawn in the same colour vanilla uses for orders that cannot be started.</WBG_SettingPreventOvershootTip>
 
   <WBG_SettingIsolateMute>Track ingredient searches per station</WBG_SettingIsolateMute>
   <WBG_SettingIsolateMuteTip>When a station cannot find ingredients for an order, the game waits about ten seconds before trying again. Vanilla remembers that against the order, so in a linked group one badly-placed station makes every other station skip the order too. With this on, each station remembers its own.</WBG_SettingIsolateMuteTip>
+
+  <WBG_SettingSelectWholeGroup>Select the whole group at once</WBG_SettingSelectWholeGroup>
+  <WBG_SettingSelectWholeGroupTip>Clicking any station in a group selects every station in it.\n\nOff by default, for two reasons. The game shows no bill list for a multiple selection, so with this on you cannot open a station's work orders by clicking it. And buttons act on everything selected, so clicking one station and pressing Deconstruct will deconstruct the whole group.\n\nThe connecting line and the group outline are drawn either way.</WBG_SettingSelectWholeGroupTip>
+
+  <WBG_SettingExcludedClasses>Never link these station types</WBG_SettingExcludedClasses>
+  <WBG_SettingExcludedClassesTip>Advanced. Class names, separated by commas — for example: Building_WorkTable_HeatPush\n\nStations are normally chosen by what they make, which works for modded stations too. If a modded station misbehaves when linked, the error message names its class; put that name here and this mod will leave it alone. Takes effect after a restart.</WBG_SettingExcludedClassesTip>
 
 </LanguageData>

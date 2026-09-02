@@ -29,6 +29,10 @@
     <Compile Include="../Source/Probes/WbgSimulateStartStep.cs" Link="WbgSimulateStartStep.cs" />
     <Compile Include="../Source/Probes/WbgAddBillStep.cs" Link="WbgAddBillStep.cs" />
     <Compile Include="../Source/Probes/WbgSaveGameStep.cs" Link="WbgSaveGameStep.cs" />
+    <Compile Include="../Source/Probes/WbgAssertEligibilityStep.cs" Link="WbgAssertEligibilityStep.cs" />
+    <Compile Include="../Source/Probes/WbgTrackGroupStep.cs" Link="WbgTrackGroupStep.cs" />
+    <Compile Include="../Source/Probes/WbgFocusBenchStep.cs" Link="WbgFocusBenchStep.cs" />
+    <Compile Include="../Source/Probes/WbgClaimBenchesStep.cs" Link="WbgClaimBenchesStep.cs" />
   </ItemGroup>
 
   <ItemGroup>

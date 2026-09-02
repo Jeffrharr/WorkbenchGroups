@@ -42,10 +42,11 @@ namespace WorkbenchGroups
 
         private static bool ShouldInject(ThingDef def)
         {
-            // The class whitelist lives in BenchEligibility so injection and the link-time check
-            // can never disagree about what is groupable — a bench that got a comp but is then
-            // refused at link time would show a gizmo that always fails.
-            return BenchEligibility.IsGroupableDef(def) && !def.AllRecipes.NullOrEmpty();
+            // The whole rule lives in BenchEligibility so injection and the link-time check can
+            // never disagree about what is groupable — a bench that got a comp but is then refused
+            // at link time would show a gizmo that always fails. That includes the "has recipes at
+            // all" test, which is now part of the recipe gate rather than a second condition here.
+            return BenchEligibility.IsGroupableDef(def);
         }
     }
 }

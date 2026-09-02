@@ -198,30 +198,88 @@ public class ApiCompatibilityTests
     [Test]
     public void SelfRunningWorkTables_StillDeriveFromBuildingWorkTable()
     {
-        // This is why the bench test is an exact type match rather than an `is` check: these
-        // cast their bills' owner back to their own type and would throw every frame if a group
-        // ever anchored on one.
+        // These cast their bills' owner back to their own type and would throw every frame if a
+        // group ever anchored on one. Their recipes already exclude them, so this is the safety
+        // net: if it stops deriving from Building_WorkTable the assignability check silently stops
+        // covering anything.
         Assert.That(GetType("RimWorld.Building_WorkTableAutonomous")?.BaseType?.FullName,
             Is.EqualTo("RimWorld.Building_WorkTable"),
             "Building_WorkTableAutonomous no longer derives from Building_WorkTable — revisit the exclusion");
     }
 
-    [Test]
-    public void HeatPushWorkTable_IsStillASafeSubclassToWhitelist()
+    [TestCase("UsesUnfinishedThing")]
+    [TestCase("formingTicks")]
+    [TestCase("gestationCycles")]
+    [TestCase("mechResurrection")]
+    public void RecipeDef_StillCarriesTheMembersTheGateReads(string memberName)
     {
-        // Stoves and smithies are Building_WorkTable_HeatPush, so excluding it would exclude the
-        // headline use case. It is whitelisted only because its sole override pushes heat and it
-        // adds no state of its own — if it ever gains a field or another override, the whitelist
-        // needs re-examining before it can keep anchoring groups.
-        var type = GetType("RimWorld.Building_WorkTable_HeatPush");
+        // BenchEligibility no longer names bench classes: it admits a bench when every one of its
+        // recipes would make a plain Bill_Production, which BillUtility.MakeNewBill decides from
+        // exactly these four fields. Rename or remove one and RecipeGate silently starts admitting
+        // a bill type we cannot share.
+        var type = GetType("Verse.RecipeDef");
 
-        Assert.That(type, Is.Not.Null, "Building_WorkTable_HeatPush no longer exists");
-        Assert.That(type!.BaseType?.FullName, Is.EqualTo("RimWorld.Building_WorkTable"));
-        Assert.That(type.Fields.Where(f => !f.IsLiteral && !f.IsStatic), Is.Empty,
-            "Building_WorkTable_HeatPush gained instance state — re-check whether it is still safe to group");
-        Assert.That(type.Methods.Where(m => m.IsVirtual && !m.IsConstructor).Select(m => m.Name),
-            Is.EquivalentTo(new[] { "UsedThisTick" }),
-            "Building_WorkTable_HeatPush overrides something new — re-check whether it is still safe to group");
+        Assert.That(type, Is.Not.Null, "Verse.RecipeDef no longer exists");
+        Assert.That(
+            type!.Fields.Any(f => f.Name == memberName)
+                || type.Properties.Any(p => p.Name == memberName),
+            Is.True,
+            $"RecipeDef.{memberName} no longer exists — re-derive the gate from BillUtility.MakeNewBill");
+    }
+
+    [Test]
+    public void MakeNewBill_StillBranchesOnFourThingsAndNothingElse()
+    {
+        // The gate is only as correct as this branch list is current. Counting the Bill types
+        // MakeNewBill can construct catches a fifth case being added — which would be a new bill
+        // subclass slipping into shared stacks with no test failing anywhere else.
+        var method = GetType("RimWorld.BillUtility")?.Methods
+            .FirstOrDefault(m => m.Name == "MakeNewBill");
+
+        Assert.That(method, Is.Not.Null, "BillUtility.MakeNewBill no longer exists");
+
+        var constructed = method!.Body.Instructions
+            .Where(i => i.OpCode.Code == Mono.Cecil.Cil.Code.Newobj)
+            .Select(i => ((MethodReference)i.Operand).DeclaringType.FullName)
+            .Distinct()
+            .ToList();
+
+        Assert.That(constructed, Is.EquivalentTo(new[]
+        {
+            "RimWorld.Bill_ProductionWithUft",
+            "RimWorld.Bill_ResurrectMech",
+            "RimWorld.Bill_ProductionMech",
+            "RimWorld.Bill_Autonomous",
+            "RimWorld.Bill_Production",
+        }), "MakeNewBill constructs a different set of bills — RecipeGate's rule needs re-deriving");
+    }
+
+    [Test]
+    public void Selector_Select_StillTakesObjectAndPlaysSound()
+    {
+        // Whole-group selection postfixes this. A renamed method silently stops the patch from
+        // applying, and the symptom is a feature that quietly does nothing.
+        var method = GetType("RimWorld.Selector")?.Methods
+            .FirstOrDefault(m => m.Name == "Select" && m.Parameters.Count == 3);
+
+        Assert.That(method, Is.Not.Null, "Selector.Select(3 args) no longer exists");
+        Assert.That(method!.Parameters[0].ParameterType.FullName, Is.EqualTo("System.Object"),
+            "Selector.Select's first parameter is no longer object");
+        Assert.That(method.Parameters.Select(p => p.Name),
+            Is.EqualTo(new[] { "obj", "playSound", "forceDesignatorDeselect" }),
+            "Selector.Select's parameters were renamed — the patch's named arguments will not bind");
+    }
+
+    [Test]
+    public void GenDraw_DrawLineBetween_StillHasTheTwoPointOverload()
+    {
+        // The group's connecting line uses the same default-material overload as CompFacility, so
+        // it matches vanilla's own "these are linked" visual rather than inventing one.
+        var method = GetType("Verse.GenDraw")?.Methods
+            .FirstOrDefault(m => m.Name == "DrawLineBetween" && m.Parameters.Count == 2);
+
+        Assert.That(method, Is.Not.Null,
+            "GenDraw.DrawLineBetween(A, B) no longer exists — the group connection line has no drawer");
     }
 
     [Test]

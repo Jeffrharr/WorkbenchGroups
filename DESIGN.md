@@ -95,23 +95,88 @@ once per bill per frame while the tab is open.
 
 ## Deliberate exclusions
 
-- **Bench classes outside a whitelist.** `Building_WorkTableAutonomous` and its descendant
-  `Building_MechGestator` derive from `Building_WorkTable` and then cast the bill's owner
-  back to their own class, so a wrong-class anchor throws every frame rather than degrading.
-  The whitelist is therefore of exact types, not an `is` check.
+- **Benches with no shareable recipe at all.** Eligibility is decided by what a bench
+  *makes*, not by its C# class. `BillUtility.MakeNewBill` picks the `Bill` subclass from the
+  `RecipeDef` alone — `UsesUnfinishedThing`, `mechResurrection`, `gestationCycles > 0`,
+  `formingTicks > 0`, else plain `Bill_Production` — so the only bill type we can share is
+  predictable from the def, with no reference to the bench's class. A bench is offered the
+  gizmo when at least one of its recipes makes a plain `Bill_Production`; if none does, a
+  group could never hold anything and the gizmo would be a lie.
 
-  It holds two entries. `Building_WorkTable_HeatPush` is in it because it is behaviourally
-  identical for our purposes — its only override is `UsedThisTick`, pushing heat — and
-  because every vanilla stove and smithy uses it, so excluding it would have excluded the
-  case the mod exists for. That was caught by trying to write the live test, not by
-  reading the class list; a Cecil test now fails if that class gains state or another
-  override. Modded benches that subclass for cosmetics are excluded until whitelisted.
+  This replaced a whitelist of two exact types, which was wrong in both directions. It
+  excluded every modded bench with a custom `thingClass`, and it *included*
+  `SubcoreEncoder` — a plain `Building_WorkTable` whose one recipe has `formingTicks`, so
+  the old rule would have put a `Bill_Autonomous` into a shared stack.
+
+  **"At least one" and not "every one" is the load-bearing choice.** The stricter form is
+  tempting because it makes an unshareable bill impossible on a grouped bench. Measured
+  against the loaded def database it excludes every crafting bench in the game: apparel,
+  weapons, armour and sculptures all use unfinished things, so tailoring benches (1 of 45
+  recipes plain), smithies (3 of 23), the machining table (7 of 70), the crafting spot
+  (3 of 19) and the bioferrite shaper (1 of 20) all lose the gizmo. That trades a modded-
+  bench gap for a far larger vanilla one. The census the `eligibility_gate` scenario logs is
+  what settled it; the rule was written the strict way first and the numbers changed it.
+
+  So the recipe test lives at the bill instead, where the danger actually is:
+  `Patch_BillStack_AddBill` refuses a non-shareable bill entry into a shared stack, on every
+  route — the tab's dropdown, paste from the clipboard, another mod adding one in code.
+  A grouped machining table still offers "make assault rifle" and refuses it with a message
+  naming the bill, which is a smaller surprise than the gizmo being absent from every
+  crafting bench in the colony.
+- **Bench classes assignable to `Building_WorkTableAutonomous`.** A safety net, not the
+  rule. That class and its descendant `Building_MechGestator` cast the bill's owner back to
+  their own type, so a wrong-class anchor throws every frame rather than degrading. Their
+  recipes already give them away, which makes the check redundant today; it is there for a
+  future vanilla subclass whose recipes do not.
+- **Anything the player names.** A mod setting holds `thingClass` names to leave alone,
+  matched on either the qualified or the bare form. This is the escape hatch for the one
+  thing no def-level rule can see: a modded bench class hard-casting `billStack.billGiver`
+  to its own type inside its own code. No rule over defs can detect that before it throws,
+  and the stack trace the player is already looking at names the class, so pasting it into a
+  box is a same-evening fix rather than a wait for a release. `BillGroupOps.Link` also rolls
+  back if anything throws partway through, so a bench class we admitted on trust cannot cost
+  the player their work orders.
 - **Bills that are not exactly `Bill_Production`.** `Bill_ProductionWithUft` is the
   painful one: an unfinished item left on a non-anchor bench fails `HaulAIUtility`'s
   "inside the owner's footprint" test forever and can never be hauled away.
 - **Different recipe sets.** Vanilla's selection has no notion of "this bill is only valid
   at some of these benches"; requiring identical sets makes every bill trivially valid
   everywhere, which is what lets the selection loop stay untouched.
+
+## Showing a group on the map
+
+A selected bench draws two things: a yellow outline around its groupmates, and `GenDraw.DrawLineBetween` to each of them. The line deliberately uses the same default material vanilla uses between a workbench and its facilities, so a group reads as "these are connected" in a visual language players already have, rather than in a second convention of our own. Both draw off a *single* selected bench, which turns out to matter.
+
+Selecting one bench can also select the whole group (`Patch_Selector_Select`), which is what people expect after using linked storage. **It ships off**, for a reason no probe could have found:
+
+> RimWorld shows no ITab for a multi-selection. Two selected stoves give an inspect pane reading "Electric stove x2" and no tabs at all — so auto-selecting the group makes the bills tab unreachable by clicking a bench, and the bills tab is the whole point of this mod.
+
+That surfaced the first time the feature was screenshotted, and it is why the visual sequence exists. The second consequence stands on its own and is the reason vanilla's storage groups do not auto-select either: gizmos act on the whole selection, so clicking one bench and pressing Deconstruct deconstructs the group.
+
+The setting is kept rather than dropped because the group-at-a-glance reading is genuinely useful when arranging a workshop rather than editing orders — and because the informative half, the line and the outline, is available either way. `wbg_selected_count` pins the shipped default, so a change that silently turned expansion on would fail rather than quietly take the bills tab away from everyone.
+
+## Marking bills in the list
+
+Each row in a grouped bench's bill list carries a chain icon, drawn by a postfix on
+`Bill.DoInterface` — which ends its own `BeginGroup` before returning and hands back the row's
+rect in absolute coordinates, so the postfix needs no offset arithmetic. It sits left of the
+suspend/copy/delete trio that occupies the row's top-right 76 pixels.
+
+The textures are vanilla's own `LinkStorageSettings` and `UnlinkStorageSettings`, the pair this
+mod's link and unlink gizmos already use. A player who has linked storage knows what a chain
+and a broken chain mean, and that is worth more than a bespoke icon.
+
+Nothing is drawn for an ungrouped bench. "Not linked" is not the same as "linked to nothing":
+a broken chain on every bill of every workbench in a colony that has never used this mod would
+be noise standing in for information, so the icon appears exactly when there is a group for it
+to describe.
+
+**The broken chain is scaffolding and currently unreachable.** Linking requires identical
+recipe sets, so a group cannot hold a bill only some of its benches can work. It is written now
+because per-bill linkage (`TODO.md` item 1) is the change that makes the state reachable, and an
+icon added at the same time as the feature is an icon nobody checked. The rule itself is a pure
+function in `Source/Core/BillLinkage.cs` with unit tests, so what is untested is the three lines
+that put a texture on screen rather than the decision behind them.
 
 ## Known rough edges
 
@@ -139,22 +204,47 @@ once per bill per frame while the tab is open.
 
 Implemented, unit-tested, and exercised in a running game.
 
-**Offline** (`./test.sh`, 81 tests): the pure core in `Source/Core/`, plus Mono.Cecil checks
-on every vanilla member the patches depend on.
+**Offline** (`./test.sh`, 109 tests): the pure core in `Source/Core/`, plus Mono.Cecil checks
+on every vanilla member the patches depend on — including the four `RecipeDef` members the
+eligibility gate reads, and the set of `Bill` types `BillUtility.MakeNewBill` constructs. That
+second one is the gate's real dependency: a fifth branch added there would let a new bill type
+into shared stacks with nothing else failing.
 
 **Live** (`RimWorldTestHarness`, scenarios in `Tests/Scenarios/`, probe bridge in `TestMod/`).
 All probes pass:
 
 | Scenario | What it establishes |
 |---|---|
-| `link_smoke` | The mod loads. 22 work tables get the comp; no errors, no failed patches. |
+| `eligibility_gate` | The recipe-shaped rule against the real def database, all DLC loaded: 14 named benches groupable, 5 not. Logs a census of every work-table def with its verdict and plain-recipe count, so a RimWorld update that shifts the rule is diagnosable from one run. |
+| `link_smoke` | The mod loads. 19 work tables get the comp; no errors, no failed patches. |
 | `round_robin_rotation` | Group size 2; mode toggle takes; **3 bills visible from the second bench**, which is the field swap working; head bill cycles 0 → 1 → 2 → 0 across three starts. |
 | `overshoot_guard` | A `repeatCount = 1` bill goes from "would start" to "would not" the moment one pawn claims it. |
 | `shared_save_integrity` | **Zero duplicate load-ID warnings** on save, and sharing intact afterwards. |
+| `reload_roundtrip_save` + `reload_roundtrip_load` | The save/reload round-trip, run as two game loads by `Tests/run_roundtrip.sh` (kept in `Tests/Scenarios/roundtrip/`, since it needs a fixture the rest of the suite does not) — phase A links, adds three bills, switches on round robin and saves; the script copies that save into the harness's `Fixtures/`; phase B boots with it and only probes. **After the load the two benches' `billStack` fields are the same object**, all three bills are visible from the second bench, and the group is still in round robin. |
 
 The rotation and overshoot scenarios drive real jobs carrying real bills through
 `Pawn_JobTracker.StartJob`, so the shipped Harmony postfix is in the path rather than
 being bypassed by the test calling our own code.
+
+Three captures in `Tests/Screenshots/` walk the round-trip: the second bench's empty tab
+before linking, the same bench showing the group's three bills after, and the same again in a
+second game load. Everything this mod does is invisible on the map — two stoves look identical
+linked or not — so the bills tab is the only frame worth taking, and `WbgFocusBench` exists to
+frame it.
+
+That sequence immediately earned itself: the "after link" frame read **"Linked: 2 stations (in
+order)"** on a group that was in round robin. `ordering` is anchor-only state, and
+`CompInspectStringExtra` was reading the selected bench's own copy, so every non-anchor bench in
+a round-robin group told the player the opposite of what the group did. No probe could catch it,
+because every probe read the anchor; `wbg_member_reported_mode` now reads what a follower
+reports, and is asserted on both sides of the save.
+
+The round-trip's key probe is `wbg_stacks_reference_equal`, not a bill count. Counting bills
+would pass on two benches that each came back holding their own deep-loaded copy of the same
+three bills, which is exactly what a missing redirect produces. Nothing about object identity
+is visible in a frame, so there is no screenshot; the check that the scenario is not vacuously
+green is a negative control — pointed at `minimal_colony.rws` instead, every probe fails and
+`WbgTrackGroup` reports no group on the map.
 
 ### What is not yet verified
 
@@ -162,10 +252,11 @@ being bypassed by the test calling our own code.
   to a bill, holding the job as a `Wait` rather than `DoBill`. Whether pawns then walk to
   the right bench and produce the right number of items is untested; it would make the
   result depend on the fixture colony's food, power, pathing and work priorities.
-- **The reload half of the save round-trip.** The save side is measured directly (the
-  duplicate-ID warning is exactly the failure the `ExposeData` swap prevents), but the
-  harness has no step that reloads mid-scenario, so `PostMapInit` reinstalling the redirect
-  after a load has not been observed. This is the highest-value gap.
 - **Anchor handover, gravship transport, and minify/reinstall.** All reasoned about
   carefully and none exercised.
 - **Interaction with the conflicting mods** listed above. Only the baseline load was run.
+- **The `AddBill` refusal, in play.** The predicate behind it is unit-tested and the
+  eligibility census proves which benches can reach the case, but no scenario has yet added
+  an unfinished-thing bill to a grouped bench and watched it be refused.
+- **The link rollback.** Written against a throw we cannot reproduce on demand, so it has
+  never run.

@@ -1,0 +1,36 @@
+{
+  "name": "reload_roundtrip_load",
+  "saveFile": "wbg_roundtrip.rws",
+  "steps": [
+    {
+      "comment": "Phase B of the reload round-trip: the save written by reload_roundtrip_save, loaded fresh. Probes only — nothing here links anything, so everything asserted below was rebuilt by CompBillGroup.PostMapInit reinstalling the field redirect during the load. Needs Tests/run_roundtrip.sh, which copies the save into the harness's Fixtures/ between the two runs. No screenshot: what this proves is that two benches point at one BillStack object, and no frame can show that. The falsifiability evidence is the control run in run_roundtrip.sh's header instead.",
+      "type": "WbgTrackGroup",
+      "args": { "expectSize": "2" }
+    },
+
+    {
+      "comment": "The load-bearing one. Bill counts alone would pass on two benches that came back holding separate deep-loaded copies of the same three bills, which is precisely the failure a missing redirect produces.",
+      "type": "Probe",
+      "args": { "probeName": "wbg_stacks_reference_equal", "expectedValue": "1", "tolerance": "0" }
+    },
+
+    { "type": "Probe", "args": { "probeName": "wbg_group_size", "expectedValue": "2", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "wbg_bills_visible_at_second_bench", "expectedValue": "3", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "wbg_ordering_mode", "expectedValue": "1", "tolerance": "0" } },
+
+    {
+      "comment": "What a follower's inspect pane tells the player, as opposed to what the anchor's comp holds. These disagreed until the mode line was made to read the anchor: every non-anchor bench in a round-robin group said 'in order'.",
+      "type": "Probe",
+      "args": { "probeName": "wbg_member_reported_mode", "expectedValue": "1", "tolerance": "0" }
+    },
+
+    {
+      "comment": "The third frame, in a second game load: the same bench, the same three bills, rebuilt by PostMapInit rather than by anything in this scenario. Reference equality is what the probe above proves; this only shows the player-visible half survived.",
+      "type": "WbgFocusBench",
+      "args": { "def": "ElectricStove", "index": "1" }
+    },
+    { "type": "LookAt", "args": { "zoom": "11" } },
+    { "type": "Wait", "args": { "frames": "20" } },
+    { "type": "Screenshot", "args": { "fileName": "seq_3_after_reload.png", "hideUi": "false" } }
+  ]
+}
