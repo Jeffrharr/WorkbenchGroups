@@ -27,8 +27,36 @@ namespace WorkbenchGroups.Patches
     [HarmonyPatch(typeof(ITab_Bills), "FillTab")]
     public static class Patch_ITab_Bills_FillTab
     {
-        /// <summary>Clear of "Add bill" on the left and vanilla's paste button on the right.</summary>
-        private static readonly Rect ButtonRect = new Rect(168f, 2f, 190f, 26f);
+        // Vanilla's own layout, in tab space, so this button can line up with it rather than
+        // approximately near it. RimWorld's UI is immediate-mode with hardcoded rects — there is
+        // no layout system, no struts, nothing to anchor to — so matching it means restating it.
+        //
+        //   ITab_Bills.FillTab passes new Rect(0, 0, 420, 480).ContractedBy(10) to DoListing,
+        //   which BeginGroups it. So the group origin is (10, 10).
+        //   BillStack.DoListing draws "Add bill" at group-local (0, 0, 150, 29)  -> tab (10, 10).
+        //   Its scroll view starts at group-local y = 35                          -> tab y = 45.
+        //   ITab_Bills draws paste at (WinSize.x - 48, 3, 24, 24)                 -> tab (372, 3).
+        //
+        // Matching "Add bill"'s y and height is what makes the two read as one row; the earlier
+        // rect sat eight pixels high with a shorter body, which looked like a mistake because it
+        // was one.
+        private const float AddBillRight = 160f;   // 10 + 150
+        private const float PasteLeft = 372f;      // 420 - 48
+        private const float Gap = 8f;
+
+        /// <summary>
+        /// Vertically identical to "Add bill", filling the gap between it and the paste button.
+        ///
+        /// If a future RimWorld moves either neighbour this button does not overlap anything
+        /// structural — it just stops being flush, which is visible and harmless. Deliberately not
+        /// pinned by a Cecil test: the numbers live inside method bodies, and a test that reads
+        /// them would be reimplementing the layout rather than checking it.
+        /// </summary>
+        private static readonly Rect ButtonRect = new Rect(
+            AddBillRight + Gap,
+            10f,
+            PasteLeft - Gap - (AddBillRight + Gap),
+            29f);
 
         public static void Postfix()
         {
