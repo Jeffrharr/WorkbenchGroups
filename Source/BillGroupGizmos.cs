@@ -26,7 +26,6 @@ namespace WorkbenchGroups
         private const int LinkGroupKey = 63140021;
         private const int UnlinkGroupKey = 63140022;
         private const int SelectGroupKey = 63140023;
-        private const int OrderingGroupKey = 63140024;
 
         public static IEnumerable<Gizmo> GizmosFor(CompBillGroup comp)
         {
@@ -48,7 +47,10 @@ namespace WorkbenchGroups
             {
                 yield return UnlinkCommand();
                 yield return SelectLinkedCommand(bench, index);
-                yield return OrderingCommand(bench, index);
+
+                // No ordering gizmo: it lives at the top of the bills tab now
+                // (Patch_ITab_Bills_FillTab). Ordering is a property of the list, and every other
+                // control that shapes the list is already there.
             }
         }
 
@@ -123,70 +125,6 @@ namespace WorkbenchGroups
                     }
                 },
             };
-        }
-
-        /// <summary>
-        /// How the group works through its list, as a dropdown rather than a toggle.
-        ///
-        /// A toggle was fine for two modes and stops being fine at three; more to the point, a
-        /// toggle only ever names the mode you are not in, so a player had to reason backwards
-        /// from "round robin is off" to what the group was actually doing. The dropdown names the
-        /// current mode on the button and lists every mode as a choice, which is the shape
-        /// vanilla uses for the storage tab's own multi-way settings.
-        /// </summary>
-        private static Gizmo OrderingCommand(Building_WorkTable bench, BillGroupIndex index)
-        {
-            Building_WorkTable anchor = index.AnchorOf(bench);
-            CompBillGroup anchorComp = anchor?.GetComp<CompBillGroup>();
-            OrderingMode current = anchorComp?.Ordering ?? OrderingMode.InOrder;
-
-            return new Command_Action
-            {
-                defaultLabel = "WBG_CommandOrdering".Translate(LabelOf(current)),
-                defaultDesc = "WBG_CommandOrderingDesc".Translate(),
-                icon = TexCommand.RearmTrap,
-                groupKey = OrderingGroupKey,
-                action = delegate
-                {
-                    Find.WindowStack.Add(new FloatMenu(OrderingOptions(anchorComp, current)));
-                },
-            };
-        }
-
-        /// <summary>
-        /// One entry per mode, current one included.
-        ///
-        /// The current mode is listed rather than filtered out so the menu always has the same
-        /// shape and the same entry in the same place — a menu whose items move depending on
-        /// state is one you have to read every time. Re-picking it is a no-op;
-        /// <see cref="RoundRobin.SetOrdering"/> returns early when the mode is unchanged, which
-        /// matters because switching in is what snapshots the player's ordering.
-        /// </summary>
-        private static List<FloatMenuOption> OrderingOptions(CompBillGroup anchorComp, OrderingMode current)
-        {
-            List<FloatMenuOption> options = new List<FloatMenuOption>();
-
-            foreach (OrderingMode mode in new[] { OrderingMode.InOrder, OrderingMode.RoundRobin })
-            {
-                OrderingMode chosen = mode;
-                string label = mode == current
-                    ? "WBG_OrderingCurrent".Translate(LabelOf(mode))
-                    : LabelOf(mode);
-
-                options.Add(new FloatMenuOption(label, delegate
-                {
-                    RoundRobin.SetOrdering(anchorComp, chosen);
-                }));
-            }
-
-            return options;
-        }
-
-        private static string LabelOf(OrderingMode mode)
-        {
-            return mode == OrderingMode.RoundRobin
-                ? "WBG_ModeRoundRobin".Translate()
-                : "WBG_ModeInOrder".Translate();
         }
 
         /// <summary>
