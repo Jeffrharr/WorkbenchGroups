@@ -30,17 +30,58 @@ namespace WorkbenchGroups
         private readonly Dictionary<Building_WorkTable, HashSet<RecipeDef>> commonRecipesByAnchor
             = new Dictionary<Building_WorkTable, HashSet<RecipeDef>>();
 
+        /// <summary>Anchor-first rosters, cached because the draw code asks every frame.</summary>
+        private readonly Dictionary<Building_WorkTable, List<Building_WorkTable>> rosterByAnchor
+            = new Dictionary<Building_WorkTable, List<Building_WorkTable>>();
+
+        /// <summary>Shared empty result, so the ungrouped case allocates nothing at all.</summary>
+        private static readonly List<Building_WorkTable> EmptyRoster = new List<Building_WorkTable>();
+
         private bool dirty = true;
 
-        private const int ReconcileInterval = 250;
+        /// <summary>How often stopped workers are pruned. Cheap: O(pawns actually working bills).</summary>
+        private const int PruneInterval = 250;
+
+        /// <summary>
+        /// How often the full pawn scan runs. Ten times rarer than the prune because it is the
+        /// expensive one — it walks every spawned pawn — and it only catches the milder failure.
+        /// </summary>
+        private const int FullReconcileInterval = 2500;
 
         public BillGroupIndex(Map map) : base(map)
         {
         }
 
+        /// <summary>Last map asked for, and its index. See <see cref="For"/>.</summary>
+        private static Map lastQueriedMap;
+        private static BillGroupIndex lastQueriedIndex;
+
+        /// <summary>
+        /// The index for a map.
+        ///
+        /// Memoised on the last map asked for, because <c>Map.GetComponent</c> walks the map's
+        /// whole component list and this is called from the two hottest paths in the mod — the
+        /// work-giver prefix (per bench, per pawn, per scan) and the ShouldDoNow postfix. A
+        /// one-entry memo rather than a dictionary keyed by Map: calls arrive in bursts for one
+        /// map, a dictionary would hold Map references alive after the map is removed, and there
+        /// is no map-removed hook to prune it from. Wrong-map asks simply miss and fall through.
+        /// </summary>
         public static BillGroupIndex For(Map map)
         {
-            return map?.GetComponent<BillGroupIndex>();
+            if (map == null)
+            {
+                return null;
+            }
+
+            if (ReferenceEquals(map, lastQueriedMap))
+            {
+                return lastQueriedIndex;
+            }
+
+            BillGroupIndex index = map.GetComponent<BillGroupIndex>();
+            lastQueriedMap = map;
+            lastQueriedIndex = index;
+            return index;
         }
 
         public void SetDirty()
@@ -59,11 +100,19 @@ namespace WorkbenchGroups
             base.MapComponentTick();
 
             // The in-flight counts are maintained incrementally on job start and job cleanup;
-            // this periodic sweep is the safety net that stops a missed hook from permanently
-            // wedging a bill. Cheap enough at four times a second to not be worth conditioning.
-            if (Find.TickManager.TicksGame % ReconcileInterval == 0)
+            // these sweeps are the safety net for a missed hook. Split by cost, because the two
+            // failures are not equally bad: an over-count wedges a bill forever and is cheap to
+            // detect, while an under-count only degrades to vanilla behaviour and needs a full
+            // pawn scan to find.
+            int tick = Find.TickManager.TicksGame;
+
+            if (tick % FullReconcileInterval == 0)
             {
-                InFlightTracker.Reconcile(map);
+                InFlightTracker.ReconcileFully(map);
+            }
+            else if (tick % PruneInterval == 0)
+            {
+                InFlightTracker.PruneStoppedWorkers(map);
             }
         }
 
@@ -115,18 +164,29 @@ namespace WorkbenchGroups
             return IsAnchor(bench) ? bench : null;
         }
 
-        /// <summary>Every bench in the group, anchor first. Empty when ungrouped.</summary>
+        /// <summary>
+        /// Every bench in the group, anchor first. Empty when ungrouped.
+        ///
+        /// The returned list is cached and shared — <b>callers must not mutate it</b>. It used to
+        /// allocate on every call, and the gizmo code asks once per frame per selected bench
+        /// (the group outline and the connecting lines), which made a value that only changes on
+        /// link or unlink into steady garbage. Cleared with the rest of the index, so it cannot
+        /// outlive the membership it describes.
+        /// </summary>
         public List<Building_WorkTable> RosterOf(Building_WorkTable bench)
         {
-            List<Building_WorkTable> roster = new List<Building_WorkTable>();
-
             Building_WorkTable anchor = AnchorOf(bench);
             if (anchor == null)
             {
-                return roster;
+                return EmptyRoster;
             }
 
-            roster.Add(anchor);
+            if (rosterByAnchor.TryGetValue(anchor, out List<Building_WorkTable> cached))
+            {
+                return cached;
+            }
+
+            List<Building_WorkTable> roster = new List<Building_WorkTable> { anchor };
 
             List<Building_WorkTable> members = MembersOf(anchor);
             if (members != null)
@@ -134,6 +194,7 @@ namespace WorkbenchGroups
                 roster.AddRange(members);
             }
 
+            rosterByAnchor[anchor] = roster;
             return roster;
         }
 
@@ -209,6 +270,7 @@ namespace WorkbenchGroups
         {
             membersByAnchor.Clear();
             commonRecipesByAnchor.Clear();
+            rosterByAnchor.Clear();
 
             // PotentialBillGiver is defined as "def has recipes", which is the smallest vanilla
             // list that is guaranteed to contain every bench we could have grouped.

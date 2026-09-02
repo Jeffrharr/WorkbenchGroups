@@ -87,6 +87,37 @@ namespace WorkbenchGroups.Patches
             {
                 TooltipHandler.TipRegion(ButtonRect, "WBG_CommandOrderingDesc".Translate());
             }
+
+            WarnIfRowAnnotationsWereSkipped(bench);
+        }
+
+        /// <summary>
+        /// Says so, once, if the bill rows were drawn without our annotations.
+        ///
+        /// This postfix runs after <c>DoListing</c>, which is what calls <c>Bill.DoInterface</c>
+        /// on each row — so by now our row patch should have run this frame. If it has not while
+        /// there are bills to draw, something replaced the row drawing, and the chain icons and
+        /// active-bill highlight are silently absent. That failure is otherwise invisible: the
+        /// tab just looks like plain vanilla, which is exactly what "the mod is off" looks like.
+        ///
+        /// A warning rather than a fix. Which mod is drawing the rows and where it expects to put
+        /// things is not knowable from here, and guessing at a layout we do not own would trade a
+        /// missing icon for a misplaced one.
+        /// </summary>
+        private static void WarnIfRowAnnotationsWereSkipped(Building_WorkTable bench)
+        {
+            if ((bench.billStack?.Count ?? 0) == 0
+                || Patch_Bill_DoInterface.LastDrawnFrame == Time.frameCount)
+            {
+                return;
+            }
+
+            Log.WarningOnce(
+                "[Workbench Groups] The bill list was drawn without calling Bill.DoInterface, so "
+                + "the shared-order chain icons and the in-progress highlight are missing. Another "
+                + "mod is drawing bill rows itself. Group behaviour is unaffected; only these "
+                + "annotations are.",
+                0x77B6_0001);
         }
 
         /// <summary>

@@ -238,9 +238,11 @@ probes still pass — those two are the ones that rewrite the surfaces we depend
 - `BillGroupGizmos.OrderingCommand` uses `TexCommand.RearmTrap` as a placeholder icon.
 - The unlink gizmo acts on the whole selection; confirm that reads correctly when benches
   from two different groups are selected at once.
-- **Profile an unpaused window.** Every profiled run so far reported `PausedFrames == 196 of
-  196`, so tick-driven work is absent from the tables through no merit of its own. That covers
-  `InFlightTracker.Reconcile` (every 250 ticks) and, more importantly,
-  `Patch_Bill_Production_ShouldDoNow` under real work-giver scans — its measured cost so far is
-  only the bill tab redrawing it. Needs an explicit `Profile` step with a `timeSpeed` arg.
+- **Profile at colony scale.** `Tests/Scenarios/hot_path_profile.json` now measures an unpaused
+  window (six linked stoves, six colonists, ingredients on the floor) and the answer is that our
+  per-call costs are sub-microsecond and the total is 0.002% of a 60 fps budget. What it does
+  *not* establish is behaviour at scale: the interesting number is calls per frame, which was
+  0.3, and it scales with pawns x benches. A 200-pawn colony with twenty benches is the run that
+  would actually stress `Patch_WorkGiver_DoBill_JobOnThing`, and it needs a fixture this one
+  cannot provide.
 - No `Preview.png` in `About/`, and no `PublishedFileId.txt` (not published).

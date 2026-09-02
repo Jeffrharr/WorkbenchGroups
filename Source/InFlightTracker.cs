@@ -20,10 +20,19 @@ namespace WorkbenchGroups
     public static class InFlightTracker
     {
         /// <summary>
-        /// Keyed by the Bill object itself. Entries are removed on decrement and when a bill is
-        /// deleted, so this does not pin dead bills; the periodic reconcile is the backstop.
+        /// Which pawns are working each bill, keyed by the Bill object itself.
+        ///
+        /// Holding the pawns rather than a bare count is what makes the backstop affordable. The
+        /// count alone could only be checked against reality by scanning every pawn on the map;
+        /// with the workers recorded, the common repair — a pawn that stopped without the
+        /// decrement firing — is checked in O(pawns actually working bills), which is a handful
+        /// rather than the whole colony.
+        ///
+        /// It also makes the tracking idempotent: a pawn already recorded against a bill cannot
+        /// be counted twice, which a bare increment could do if a hook ever fired twice.
         /// </summary>
-        private static readonly Dictionary<Bill, int> counts = new Dictionary<Bill, int>();
+        private static readonly Dictionary<Bill, HashSet<Pawn>> workers
+            = new Dictionary<Bill, HashSet<Pawn>>();
 
         public static int InFlight(Bill bill)
         {
@@ -32,41 +41,46 @@ namespace WorkbenchGroups
                 return 0;
             }
 
-            return counts.TryGetValue(bill, out int value) ? value : 0;
+            return workers.TryGetValue(bill, out HashSet<Pawn> set) ? set.Count : 0;
         }
 
-        public static void Increment(Bill bill)
+        public static void Increment(Bill bill, Pawn pawn)
         {
-            if (bill == null)
+            if (bill == null || pawn == null)
             {
                 return;
             }
 
-            counts.TryGetValue(bill, out int value);
-            counts[bill] = value + 1;
+            if (!workers.TryGetValue(bill, out HashSet<Pawn> set))
+            {
+                set = new HashSet<Pawn>();
+                workers[bill] = set;
+            }
+
+            set.Add(pawn);
         }
 
-        public static void Decrement(Bill bill)
+        public static void Decrement(Bill bill, Pawn pawn)
         {
-            if (bill == null || !counts.TryGetValue(bill, out int value))
+            if (bill == null || pawn == null || !workers.TryGetValue(bill, out HashSet<Pawn> set))
             {
                 return;
             }
 
-            if (value <= 1)
-            {
-                counts.Remove(bill);
-                return;
-            }
+            set.Remove(pawn);
 
-            counts[bill] = value - 1;
+            if (set.Count == 0)
+            {
+                workers.Remove(bill);
+            }
         }
+
 
         public static void Forget(Bill bill)
         {
             if (bill != null)
             {
-                counts.Remove(bill);
+                workers.Remove(bill);
             }
         }
 
@@ -79,54 +93,78 @@ namespace WorkbenchGroups
         /// And it walks every spawned pawn rather than free colonists, because mechs and slaves do
         /// bills too and a bill can be restricted to exactly those.
         /// </summary>
-        public static void Reconcile(Map map)
+        /// <summary>
+        /// Drops workers that have stopped without the decrement firing.
+        ///
+        /// This is the cheap half of the backstop and the one that matters: an over-count wedges
+        /// a bill permanently, because the overshoot guard keeps refusing to start it. Checking
+        /// costs one <c>CurJob</c> read per recorded worker — a handful, not the colony — so it
+        /// can run often.
+        ///
+        /// Deliberately does not look for *under*-counting; see <see cref="ReconcileFully"/>.
+        /// </summary>
+        public static void PruneStoppedWorkers(Map map)
+        {
+            if (map == null || workers.Count == 0)
+            {
+                return;
+            }
+
+            List<Bill> emptied = null;
+
+            foreach (KeyValuePair<Bill, HashSet<Pawn>> entry in workers)
+            {
+                // Only this map's bills: reconciling one map must not drop counts on another,
+                // and Bill.Map resolves through the stack's owning bench.
+                if (entry.Key.Map == map)
+                {
+                    entry.Value.RemoveWhere(pawn => !IsStillWorking(pawn, entry.Key));
+
+                    if (entry.Value.Count == 0)
+                    {
+                        emptied = emptied ?? new List<Bill>();
+                        emptied.Add(entry.Key);
+                    }
+                }
+            }
+
+            if (emptied != null)
+            {
+                foreach (Bill bill in emptied)
+                {
+                    workers.Remove(bill);
+                }
+            }
+        }
+
+        private static bool IsStillWorking(Pawn pawn, Bill bill)
+        {
+            return pawn != null && pawn.Spawned && !pawn.Dead && pawn.CurJob?.bill == bill;
+        }
+
+        /// <summary>
+        /// The expensive half: a full scan that also finds pawns working a bill we never recorded.
+        ///
+        /// A missed increment is the milder failure — the guard is merely too permissive, so the
+        /// group can overproduce exactly the way vanilla would — which is why this runs an order
+        /// of magnitude less often than the prune. It is kept at all because "silently behaves
+        /// like vanilla" is still a bug, just not one that strands the player's orders.
+        /// </summary>
+        public static void ReconcileFully(Map map)
         {
             if (map == null)
             {
                 return;
             }
 
-            Dictionary<Bill, int> observed = new Dictionary<Bill, int>();
+            PruneStoppedWorkers(map);
+
             foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned)
             {
                 Bill bill = pawn.CurJob?.bill;
                 if (bill != null)
                 {
-                    observed.TryGetValue(bill, out int seen);
-                    observed[bill] = seen + 1;
-                }
-            }
-
-            // Only touch entries belonging to this map, so reconciling one map does not wipe
-            // counts on another. Bill.Map resolves through the stack's owning bench.
-            List<Bill> stale = new List<Bill>();
-            foreach (KeyValuePair<Bill, int> entry in counts)
-            {
-                bool onThisMap = entry.Key.Map == map;
-                bool matchesObservation = observed.TryGetValue(entry.Key, out int actual) && actual == entry.Value;
-                if (onThisMap && !matchesObservation)
-                {
-                    stale.Add(entry.Key);
-                }
-            }
-
-            foreach (Bill bill in stale)
-            {
-                if (observed.TryGetValue(bill, out int actual) && actual > 0)
-                {
-                    counts[bill] = actual;
-                }
-                else
-                {
-                    counts.Remove(bill);
-                }
-            }
-
-            foreach (KeyValuePair<Bill, int> entry in observed)
-            {
-                if (!counts.ContainsKey(entry.Key))
-                {
-                    counts[entry.Key] = entry.Value;
+                    Increment(bill, pawn);
                 }
             }
         }
