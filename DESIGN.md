@@ -416,11 +416,23 @@ the background wash, because their rows already carry a status tint and a second
 over it reads as a rendering fault; the edge bar stays, because their tint marks one bill and ours
 marks every bill actually committed to, which in a group is routinely several.
 
-**There is nowhere stable to put the ordering button.** Their tab is a different size and puts a
-search field exactly where ours goes. More to the point their top strip shifts by 110 pixels
-depending on whether a recipe is selected, so no rect is safe. The control falls back to a gizmo,
-which is space neither mod has to negotiate for; the tab button and the gizmo share
-`OrderingMenu` so the two homes cannot drift, and exactly one is ever shown.
+**There is nowhere stable to put the ordering button — so it takes space rather than borrowing
+it.** Their tab is a different size and puts a search field exactly where ours goes, and their top
+strip shifts by 110 pixels depending on whether a recipe is selected, so no rect found by
+inspection is safe; the first attempt drew straight over their search box.
+
+A prefix on `DrawLeftPart` takes the rect by reference and moves its `yMin` down 30px, which pushes
+their pane down and shortens it by the same amount, so the pane keeps its bottom edge and its
+scroll view shrinks to match instead of overflowing. The strip above is then ours and its position
+is fixed. The postfix draws into it — *after* their pane, because their first act is to fill the
+panel background. Two details are load-bearing: the strip is only reserved for a bench that is
+actually in a group, so no ordinary workbench pays 30px for a control it never shows; and it stops
+60px short of the right edge, because their enable checkbox and close button are positioned from
+the tab's full size at `y = 0` and so do not move when the pane does.
+
+A gizmo was tried first and works, but reads badly — the control ends up in the opposite corner of
+the screen from the list it acts on, which is the complaint that moved it off a gizmo originally.
+Both homes share `OrderingMenu`, so the vanilla-tab button and this one cannot drift.
 
 That last decision turns on a detail worth stating: **Nice Bill Tab has a runtime toggle**, a
 checkbox in its own tab corner that hands drawing back to vanilla mid-session with no event and no

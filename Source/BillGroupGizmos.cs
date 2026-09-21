@@ -23,18 +23,10 @@ namespace WorkbenchGroups
         private static readonly Texture2D UnlinkTex = ContentFinder<Texture2D>.Get("UI/Commands/UnlinkStorageSettings");
         private static readonly Texture2D SelectLinkedTex = ContentFinder<Texture2D>.Get("UI/Commands/SelectAllLinked");
 
-        // The one icon in this mod that is not vanilla's. Two vanilla candidates were tried and
-        // looked at on screen first, which is the only way either flaw was going to be found:
-        // UI/Commands/SwapOutfits renders as a pawn's head and reads as something about
-        // colonists, and UI/Buttons/ReorderDown is list-row art that scales up into a yellow
-        // wedge large enough to crowd the gizmo's own label. A plain cycle glyph says "in turn"
-        // and says nothing else.
-        private static readonly Texture2D OrderingTex = ContentFinder<Texture2D>.Get("UI/Commands/WBG_Ordering");
 
         private const int LinkGroupKey = 63140021;
         private const int UnlinkGroupKey = 63140022;
         private const int SelectGroupKey = 63140023;
-        private const int OrderingGroupKey = 63140024;
 
         public static IEnumerable<Gizmo> GizmosFor(CompBillGroup comp)
         {
@@ -57,18 +49,15 @@ namespace WorkbenchGroups
                 yield return UnlinkCommand();
                 yield return SelectLinkedCommand(bench, index);
 
-                // Normally there is no ordering gizmo: it lives at the top of the bills tab
-                // (Patch_ITab_Bills_FillTab), because ordering is a property of the list and
-                // every other control that shapes the list is already there.
+                // No ordering gizmo. It lives at the top of the bills tab — in vanilla's via
+                // Patch_ITab_Bills_FillTab, and in Nice Bill Tab's via a strip that
+                // Compat.NiceBillTabCompat reserves by pushing their pane down. Ordering is a
+                // property of the list, so it belongs next to the list in both.
                 //
-                // The exception is a tab we do not own. Nice Bill Tab replaces the panel
-                // outright, and its layout offers nowhere stable to put a button, so the control
-                // falls back to gizmo space — which is ours regardless of who draws the tab.
-                // Exactly one of the two is ever shown, on the same live test.
-                if (Compat.NiceBillTabCompat.IsDrawingTab())
-                {
-                    yield return OrderingCommand(index.AnchorOf(bench)?.GetComp<CompBillGroup>());
-                }
+                // A gizmo was tried as the fallback for a replaced tab, on the grounds that gizmo
+                // space is ours whoever draws the panel. It works, and it reads badly: the
+                // control ends up at the opposite corner of the screen from the list it acts on,
+                // which is the exact complaint that moved it off a gizmo in the first place.
             }
         }
 
@@ -118,33 +107,6 @@ namespace WorkbenchGroups
                     {
                         BillGroupOps.Unlink(selected.GetComp<CompBillGroup>());
                     }
-                },
-            };
-        }
-
-        /// <summary>
-        /// The ordering choice, as a gizmo, for when a replacement bills tab has left nowhere in
-        /// the panel to put it.
-        ///
-        /// Offers the same float menu as the tab button — see <see cref="OrderingMenu"/> — so the
-        /// two homes cannot drift apart. Unlike the other gizmos here this one deliberately acts
-        /// on the group rather than on the whole selection: ordering is anchor-held state, so
-        /// applying it per selected bench would write it repeatedly to the same group, and to
-        /// several groups at once when benches from two are selected together.
-        /// </summary>
-        private static Gizmo OrderingCommand(CompBillGroup anchorComp)
-        {
-            OrderingMode current = OrderingMenu.CurrentOf(anchorComp);
-
-            return new Command_Action
-            {
-                defaultLabel = "WBG_CommandOrdering".Translate(OrderingMenu.LabelOf(current)),
-                defaultDesc = "WBG_CommandOrderingDesc".Translate(),
-                icon = OrderingTex,
-                groupKey = OrderingGroupKey,
-                action = delegate
-                {
-                    Find.WindowStack.Add(new FloatMenu(OrderingMenu.OptionsFor(anchorComp, current)));
                 },
             };
         }
