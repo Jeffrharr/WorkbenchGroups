@@ -39,6 +39,28 @@ order matters). Test offline: `./test.sh`. Test live:
 Runner/run_test.sh --mod <repo> --mod <repo>/TestMod --no-profiler <scenario.json>
 ```
 
+### Two live-testing traps that each cost an hour here
+
+**Steam must be logged in, not merely installed.** Harmony is a Workshop mod (2009463077), and
+RimWorld can only enumerate Workshop content through the Steam API. Lose the Steam login — say by
+publishing a mod — and the run fails like this, in this order: `[S_API FAIL] SteamAPI_Init()
+failed`, then `Mod RimWorld Test Harness dependency (brrainz.harmony) needs to have <downloadUrl>`,
+then `Could not resolve type ... 'HarmonyLib.HarmonyPatch' in assembly '0Harmony'`, then `Caught
+exception while loading play data ... Resetting mods config and trying again`. RimWorld disables
+every mod, reloads Core-only, and the run dies with "exited before writing a report".
+
+The trap is that the wreckage looks like several unrelated bugs: missing DLC textures
+(`MarshPollutionOverlay`) and endless `GenStuff.DefaultStuffFor ... Sequence contains no elements`
+are just "Odyssey is no longer loaded", and the Harmony line reads exactly like the build-skew or
+missing-`--mod` error the harness docs warn about. It is neither, and no flag you pass can fix it.
+Check `grep -c "S_API FAIL" <run>/Player.log` first; zero means Steam was fine and the problem is
+genuinely yours.
+
+**The harness refuses a held lock rather than queueing.** With another agent working this repo set,
+`run_test.sh` exits immediately with "another run_test.sh holds /tmp/rwth-run-1000.lock". Piped
+through `tail`, that exits 0 — so a run that never happened can read as a run that passed. Poll for
+the lock before launching, and confirm a pass by reading the report, not the exit code.
+
 ---
 
 ## 1. Per-bill linkage — relax the link rules, mark the exceptions
