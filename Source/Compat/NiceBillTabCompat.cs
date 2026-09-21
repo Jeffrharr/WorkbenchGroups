@@ -64,6 +64,7 @@ namespace WorkbenchGroups.Compat
                 Harmony harmony = new Harmony("joof.workbenchgroups.nicebilltab");
                 PatchInsertBill(harmony, drawer);
                 PatchBillRow(harmony, drawer);
+                PatchLeftPane(harmony, drawer);
             }
             catch (Exception e)
             {
@@ -176,6 +177,140 @@ namespace WorkbenchGroups.Compat
             }
 
             Patch_Bill_DoInterface.DrawRowAnnotations(bill, recipePreviewRect, compact: true);
+        }
+
+        /// <summary>
+        /// Reserves a strip at the top of Nice Bill Tab's left pane for the ordering control, by
+        /// pushing their own content down.
+        ///
+        /// The alternative was to find a gap in their layout and draw into it, and there is not
+        /// one: their top strip holds a search field, and its right-hand end moves by 110 pixels
+        /// depending on whether a recipe is selected. Anything placed by guesswork lands on the
+        /// search box for some states and not others, which is exactly what the first attempt did.
+        ///
+        /// Taking the space instead of borrowing it makes the position ours and therefore stable.
+        /// <c>rect.yMin</c> moves the top edge down *and* shortens the rect by the same amount, so
+        /// their pane keeps its bottom edge and its scroll view shrinks to match rather than
+        /// overflowing the tab. The cost is 30px of list height, which is under 5% of their
+        /// default tab, and the control ends up where the original design wanted it — next to the
+        /// list it acts on.
+        /// </summary>
+        private static void PatchLeftPane(Harmony harmony, Type drawer)
+        {
+            MethodInfo target = AccessTools.Method(drawer, "DrawLeftPart");
+            if (target == null)
+            {
+                Log.Warning(
+                    "[Workbench Groups] Nice Bill Tab is present but TabBillsDrawer.DrawLeftPart "
+                    + "was not found, so a linked group's ordering control will not appear on its "
+                    + "tab. The mode is still shown on the bench's inspect line.");
+                return;
+            }
+
+            harmony.Patch(
+                target,
+                prefix: new HarmonyMethod(typeof(NiceBillTabCompat), nameof(DrawLeftPartPrefix)),
+                postfix: new HarmonyMethod(typeof(NiceBillTabCompat), nameof(DrawLeftPartPostfix)));
+        }
+
+        /// <summary>Strip reserved by the prefix, in the same GUI space the postfix draws in.</summary>
+        private static Rect reservedStrip;
+
+        private const float StripHeight = 30f;
+
+        private const float ButtonHeight = 26f;
+
+        /// <summary>
+        /// Room kept clear on the right for Nice Bill Tab's own enable checkbox and close button,
+        /// which it draws from the tab's total size at y=0 and so are unaffected by pushing the
+        /// pane down. Without this inset the ordering button slides underneath them.
+        /// </summary>
+        private const float TopRightControlsWidth = 60f;
+
+        private const float IconSize = 16f;
+
+        /// <summary>
+        /// This mod's only non-vanilla texture. Two vanilla icons were tried and looked at on
+        /// screen first: <c>UI/Commands/SwapOutfits</c> renders as a pawn's head and reads as
+        /// something about colonists, and <c>UI/Buttons/ReorderDown</c> is list-row art that
+        /// scales into a wedge big enough to crowd its own label. A plain cycle glyph says "in
+        /// turn" and says nothing else.
+        /// </summary>
+        private static readonly Texture2D OrderingTex =
+            ContentFinder<Texture2D>.Get("UI/Commands/WBG_Ordering");
+
+        private static void DrawLeftPartPrefix(ref Rect rect, Building_WorkTable SelTable)
+        {
+            reservedStrip = Rect.zero;
+
+            if (!ShouldOfferOrdering(SelTable))
+            {
+                return;
+            }
+
+            reservedStrip = new Rect(
+                rect.x,
+                rect.y,
+                rect.width - TopRightControlsWidth,
+                ButtonHeight);
+
+            rect.yMin += StripHeight;
+        }
+
+        /// <summary>
+        /// Drawn in the postfix rather than the prefix so it sits above their pane: their first
+        /// act is to fill the panel background, which would otherwise paint straight over this.
+        /// </summary>
+        private static void DrawLeftPartPostfix(Building_WorkTable SelTable)
+        {
+            if (reservedStrip == Rect.zero)
+            {
+                return;
+            }
+
+            CompBillGroup anchorComp = AnchorCompOf(SelTable);
+            OrderingMode current = OrderingMenu.CurrentOf(anchorComp);
+
+            if (Widgets.ButtonText(reservedStrip, "WBG_CommandOrdering".Translate(OrderingMenu.LabelOf(current))))
+            {
+                Find.WindowStack.Add(new FloatMenu(OrderingMenu.OptionsFor(anchorComp, current)));
+            }
+
+            // Over the button rather than beside it: ButtonText centres its label, so an icon in
+            // the left inset reads as part of the same control without the label having to be
+            // shortened or the strip widened.
+            GUI.DrawTexture(
+                new Rect(reservedStrip.x + 5f, reservedStrip.y + 5f, IconSize, IconSize),
+                OrderingTex);
+
+            // Hover-gated like the vanilla-tab button: this runs every frame the tab is open, and
+            // building a paragraph-length translated string for a tooltip nobody asked for is most
+            // of what such a draw costs.
+            if (Mouse.IsOver(reservedStrip))
+            {
+                TooltipHandler.TipRegion(reservedStrip, "WBG_CommandOrderingDesc".Translate());
+            }
+        }
+
+        /// <summary>
+        /// Whether this bench is in a group, asked before the strip is reserved so an ungrouped
+        /// bench's tab is left exactly as Nice Bill Tab drew it. An unconditional 30px inset
+        /// would tax every workbench in the game for a control almost none of them show.
+        /// </summary>
+        private static bool ShouldOfferOrdering(Building_WorkTable bench)
+        {
+            if (bench == null || !bench.Spawned)
+            {
+                return false;
+            }
+
+            BillGroupIndex index = BillGroupIndex.For(bench.Map);
+            return index != null && index.GroupSize(bench) >= 2;
+        }
+
+        private static CompBillGroup AnchorCompOf(Building_WorkTable bench)
+        {
+            return BillGroupIndex.For(bench.Map)?.AnchorOf(bench)?.GetComp<CompBillGroup>();
         }
     }
 }

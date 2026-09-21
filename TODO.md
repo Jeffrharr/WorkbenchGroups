@@ -284,7 +284,7 @@ probes still pass — those two are the ones that rewrite the surfaces we depend
 ## 3. Smaller loose ends
 
 - ~~`BillGroupGizmos.OrderingCommand` uses a placeholder icon.~~ Done: it ships a cycle glyph at
-  `1.6/Textures/UI/Commands/WBG_Ordering.png`, this mod's only non-vanilla texture. Two vanilla
+  `1.6/Textures/UI/Commands/WBG_Ordering.png`, this mod's only non-vanilla texture, shown in the ordering button on Nice Bill Tab's tab. Two vanilla
   icons were tried on screen first and both failed in ways only a capture shows — `SwapOutfits`
   renders as a pawn's head, `ReorderDown` scales into a wedge that crowds the label.
 - The unlink gizmo acts on the whole selection; confirm that reads correctly when benches
