@@ -56,19 +56,37 @@ namespace WorkbenchGroups.Patches
         private const float RightInset = 100f;
 
         /// <summary>
-        /// One 22px column further left again, for the "do this next" button and its badge.
+        /// One 22px column further left again, for the "do this next" button.
         ///
-        /// The column is clear of everything vanilla draws. <c>Bill.DoInterface</c> keeps the
-        /// reorder arrows in the left 24px and the delete/copy/suspend trio in the right 76px,
-        /// and the nearest control below is <c>DoConfigInterface</c>'s info-card button at
-        /// roughly <c>(xMax - 32, y + 37)</c>. The only thing this competes with is an
-        /// over-long bill label, which the chain icon at <see cref="RightInset"/> already
-        /// competes with — so it is not a new problem.
+        /// <c>Bill.DoInterface</c> keeps the reorder arrows in the left 24px and the
+        /// delete/copy/suspend trio in the right 76px, so the top line is free from here
+        /// leftwards. The only thing this competes with is an over-long bill label — vanilla
+        /// clips the label at <c>xMax - 40</c> and lets it run under its own buttons — which the
+        /// chain icon at <see cref="RightInset"/> already competes with, so it is not a new
+        /// problem.
         /// </summary>
         private const float NextOrderInset = 126f;
 
-        /// <summary>Short enough to sit under the button without reaching the status line.</summary>
-        private const float BadgeHeight = 16f;
+        /// <summary>
+        /// The badge, one more 22px column left of the button.
+        ///
+        /// It started out *under* the button at <c>y + 25</c>, which is what the design note
+        /// proposed and what a reading of <c>Bill.DoConfigInterface</c> supports: that base method
+        /// draws only an info-card button at roughly <c>(xMax - 32, y + 37)</c>, leaving the rest
+        /// of the second line empty. **`Bill_Production` overrides it and draws something else
+        /// entirely** — a <c>WidgetRow</c> anchored at <c>(baseRect.xMax, baseRect.y + 29)</c>
+        /// running <c>LeftThenUp</c> with "Details...", the repeat-mode button and the +/-
+        /// controls. That sweeps the whole second line from the right edge leftwards, and every
+        /// bill this mod can hold is a <c>Bill_Production</c>, so the "empty" slot is occupied on
+        /// every row there is. The first capture showed the badge sitting half on top of the
+        /// "Do X times" button.
+        ///
+        /// So the badge moved up onto the top line, which is genuinely free. Anything else that
+        /// wants a second-line slot on these rows — the batched round-robin counter in issue #8
+        /// §2 proposes <c>(xMax - 100, y + 25)</c> — needs to know this before it is drawn, not
+        /// after.
+        /// </summary>
+        private const float BadgeInset = 148f;
 
         /// <summary>
         /// Red, because the player asked for red and because nothing else in the bill list is.
@@ -187,17 +205,23 @@ namespace WorkbenchGroups.Patches
         /// The row badge, built the way vanilla builds its suspended overlay: a caps label
         /// centred on <c>TexUI.GrayTextBG</c>.
         ///
-        /// Worth recording, because it is easy to misremember — vanilla does not stamp a single
-        /// letter anywhere in the bill list. <c>Bill.DoInterface</c> writes the whole word
-        /// SUSPENDED in Medium across a 140x40 plate at the row's centre. A second plate that
-        /// size would sit exactly on top of it, and a suspended order can perfectly well also be
-        /// the marked one, so what is mirrored here is the idiom — grey plate, centred caps — at
-        /// badge scale in this mod's own column. The letter rather than a word is simply what
-        /// fits in 22 pixels; the button's tooltip carries the meaning.
+        /// Vanilla has two things that could be called "how a suspended bill is marked", and they
+        /// are worth separating because the design note conflated them. The letter "S" on the row
+        /// is <c>TexButton.Suspend</c> — a *button* glyph in the right-hand strip, not a state
+        /// indicator; it looks identical whether the bill is suspended or not. The actual state
+        /// indicator is the word SUSPENDED, written in Medium across a 140x40 plate at the row's
+        /// centre. A second plate that size would land straight on top of it, and a suspended
+        /// order can perfectly well also be the marked one.
+        ///
+        /// So this takes the state indicator's construction — <c>TexUI.GrayTextBG</c> plate,
+        /// centred caps label — and shrinks it into the button strip where the letter the request
+        /// was actually pointing at lives. <c>GameFont.Small</c>, not Tiny: the first capture had
+        /// this in Tiny inside a 16px box and the glyph came out as a handful of scattered red
+        /// pixels that read as dirt rather than as a letter.
         /// </summary>
         private static void DrawNextOrderBadge(Rect row)
         {
-            Rect badge = new Rect(row.xMax - NextOrderInset, row.y + 25f, IconSize, BadgeHeight);
+            Rect badge = new Rect(row.xMax - BadgeInset, row.y + 3f, IconSize, IconSize);
 
             GUI.DrawTexture(badge, TexUI.GrayTextBG);
 
@@ -205,7 +229,7 @@ namespace WorkbenchGroups.Patches
             TextAnchor previousAnchor = Text.Anchor;
             Color previousColor = GUI.color;
 
-            Text.Font = GameFont.Tiny;
+            Text.Font = GameFont.Small;
             Text.Anchor = TextAnchor.MiddleCenter;
             GUI.color = NextOrderAccent;
             Widgets.Label(badge, "WBG_NextOrderBadge".Translate());
