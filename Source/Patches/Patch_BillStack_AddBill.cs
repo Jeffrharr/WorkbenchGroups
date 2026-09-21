@@ -26,6 +26,20 @@ namespace WorkbenchGroups.Patches
     /// Returning false skips vanilla's body and every lower-priority patch on it — Hauler's Dream
     /// patches this method too. That is the intent rather than a side effect: the bill is not
     /// being added, so nobody's bookkeeping should record that it was.
+    ///
+    /// That claim has since been checked against Hauler's Dream rather than assumed, because
+    /// "skipping their postfix is fine" is the sort of thing that is only true until it is not.
+    /// Its postfix has two branches and we are clear on both: one applies carried batch settings
+    /// out of a <c>ConditionalWeakTable</c>, so a refused bill's entry dies with the bill, and the
+    /// other registers a default batch for the newly added bill — which is precisely what must
+    /// *not* happen for a bill that was never added.
+    ///
+    /// The limit of this guard is worth stating, because a prefix only defends against patches.
+    /// Everybody Gets One does not patch <c>AddBill</c>; it transpiles <c>ITab_Bills.FillTab</c>
+    /// to replace the call site with a wrapper that calls <c>AddBill</c> and then unconditionally
+    /// records the bill in a saved map-component dictionary. We refuse the add, but a caller's
+    /// follow-up is out of reach, so that dictionary keeps an entry for a bill in no stack. See
+    /// DESIGN.md, "Why the AddBill refusal still returns false", for why that is left as it is.
     /// </summary>
     [HarmonyPatch(typeof(BillStack), nameof(BillStack.AddBill))]
     public static class Patch_BillStack_AddBill

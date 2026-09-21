@@ -32,6 +32,9 @@ A. Yes. Every station keeps a valid bill list — the group's bills stay on the 
 Q. Does it work with modded workbenches?
 A. Yes. Stations are judged by what they make, not by how they were coded, so a modded work table is linkable without this mod knowing anything about it. Mech gestators, subcore encoders and other self-running stations are excluded because their orders are tied to their own building; if a modded station misbehaves when linked, you can name its class in the mod settings and it will be left alone.
 
+Q. Does it play nicely with other bill mods?
+A. Mostly, and the exception is worth knowing. A group's orders belong to the station you linked from, so another mod that works out "which station is this order on" gets that one station rather than the group. Nothing breaks, but a mod can then tell you an order cannot be worked — unreachable, unpowered, forbidden — when it is only the linked-from station that is, and your pawns will carry on working it at the others regardless. Nice Bill Tab's warnings do this.
+
 Q. Known limitations?
 A. A group shares vanilla's cap of 15 bills, rather than 15 per station. Orders that leave an unfinished item behind — weapons, armour, apparel, sculptures — cannot be shared: they are refused at link time, and refused if you add one to a group's list afterwards. So a linked machining table can share its component and shell orders but not its gun orders.
 
