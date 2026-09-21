@@ -3,8 +3,41 @@
 ## Where things stand
 
 `WorkbenchGroups` (packageId `joof.workbenchgroups`) links crafting stations so they share
-one bill list, plus a per-group round-robin ordering mode. Built, symlinked into the game's
-Mods folder, 109 offline tests green, seven live scenarios green.
+one bill list, plus a per-group round-robin ordering mode and a per-bill "do this next"
+marker. Built, symlinked into the game's Mods folder, 136 offline tests green, eight live
+scenarios green.
+
+### Three ways a live run lies to you
+
+All three were hit while building "do this next". Each produces a plausible-looking result.
+
+1. **Steam logged out voids the entire run.** With Steam unreachable RimWorld cannot enumerate
+   Workshop mods, `brrainz.harmony` goes invisible, our `[HarmonyPatch]` attributes cannot
+   resolve `0Harmony`, and RimWorld quietly resets the mod config and reloads **Core-only**. No
+   mods means no probes means no report, and the run fails with "exited before writing a report"
+   — which presents exactly like build skew or a missing `--mod` flag and is neither. Check
+   `grep -c "S_API FAIL" <rundir>/Player.log` before touching your flags; non-zero voids the run
+   however green it looks. Do *not* work around it by symlinking Harmony out of the Workshop
+   folder into the local `Mods/` folder — the player's real game would then see a duplicate
+   `brrainz.harmony`.
+
+2. **`--mod-overlay` carries assemblies only, not `Languages/`.** It installs
+   `<worktree>/1.6/Assemblies` and nothing else, so a new keyed string added in a worktree
+   renders as its missing-key fallback in every capture while the mod itself behaves perfectly.
+   The first "P" badge capture came out as a garbled two-line smudge for exactly this reason and
+   read as a font bug. Add the folder explicitly:
+
+   ```bash
+   --install <worktree>/Languages:<main-checkout>/Languages
+   ```
+
+   It is claimed and rolled back under the same lock as everything else.
+
+3. **A held lock is refused, not queued.** `run_test.sh` exits with
+   `FAIL: another run_test.sh holds /tmp/rwth-run-1000.lock` — and piped through `tail` that
+   still exits 0, so a run that never started reads as a run that passed. Retry the *run* in a
+   loop rather than polling the lock beforehand (poll-then-launch still races), and judge a pass
+   by reading `Pass` out of the report JSON, never by exit code.
 
 Read `DESIGN.md` first — it carries the reasoning. The short version of the load-bearing
 facts, so they don't have to be re-derived from the decompile:
@@ -268,3 +301,58 @@ probes still pass — those two are the ones that rewrite the surfaces we depend
   would actually stress `Patch_WorkGiver_DoBill_JobOnThing`, and it needs a fixture this one
   cannot provide.
 - No `Preview.png` in `About/`, and no `PublishedFileId.txt` (not published).
+
+---
+
+## 4. Ordering — what issue #8 still has open
+
+Issue #8 proposed four ordering features and made the point that three of them are one
+mechanism: "do this next", "at least N of each first" and "balance by shortfall" all sort the
+shared list by an urgency key and differ only in the key. **§1 "do this next" is now built**
+(see `DESIGN.md`, *"Do this next" promotes, it does not force*). The three that remain are §2
+batched round robin, §3 stock-aware ordering, and the group-level "one each first" toggle that
+rides on §3.
+
+Kept as a numbered section here rather than left in the issue because §1 settled several
+questions the issue listed as open, and the next agent should not re-open them:
+
+- **Sticky, not one-shot.** Decided, shipped, and documented in `DESIGN.md` with the reasoning.
+- **Exactly one marked order per group.** One nullable load ID on `CompBillGroup`, anchor-only,
+  carried across an anchor handover by `AdoptGroupState`.
+- **No new `OrderingMode` value.** The marker is mode-agnostic, so the enum was not touched and
+  the save format did not move. §3's `Balance` will still need one appended — never reordered.
+- **The marker is a list mutation, not a comparator.** It moves the bill to index 0 on the
+  click. That is why §1 needed no re-sort in `Patch_WorkGiver_DoBill_JobOnThing` and cost
+  nothing on the scan path, and it is the thing §3 cannot copy: shortfall moves with stock,
+  which no job-start event tracks. The issue's timing trap still stands in full.
+
+What §3 inherits, and what it changes:
+
+- `BillOrdering.TryPlanRotateToTail` already takes a "this bill is marked" flag and refuses.
+  When the urgency comparator lands, the marker becomes its `priorityTier` 0 exactly as the
+  issue sketched, and that flag is where it plugs in.
+- `NextOrder.Resolve` is the single choke point for "is the marker still real". The completion
+  rule it consults, `BillOrdering.IsNextOrderSpent`, can only answer for "do X times", because
+  the other two modes need `CountProducts` and that is far too expensive once per visible row
+  per frame. **§3 makes this cheap**: it has to cache per-bill product counts anyway, so
+  finishing the clearing rule for "do until you have X" is a few lines on top of that cache and
+  should be done in the same change rather than left as a known gap.
+- The canonical-order snapshot widening the issue asks for has a second caller now:
+  `RoundRobin.SetOrdering` re-promotes the marked order after reprojecting the authored order,
+  and any new list-mutating mode must do the same or the marked row goes red in the middle of
+  the list.
+- The row's button column is laid out at `xMax - 126` with the badge beneath it at `y + 25`,
+  which is the slot the issue's layout table reserved for §1. §2's `(2x)` batch label still has
+  its own slot at `xMax - 100, y + 25`, under the chain.
+
+One thing §1 left unphotographed, worth folding into whatever scenario work comes next: a marked
+order that is *also* being worked, where the red outline, the green active-bill edge and
+vanilla's pink "would not start now" all land on one row. Three colour signals on one line is
+exactly the kind of thing that has to be looked at rather than reasoned about, and the
+`do_this_next` captures only show a marked order sitting idle.
+
+**Read the layout note in `DESIGN.md` before drawing anything new on a bill row.** §2's proposed
+`(2x)` batch label at `(xMax - 100, y + 25)` is on top of `Bill_Production.DoConfigInterface`'s
+`WidgetRow`, which runs `LeftThenUp` from `(xMax, y + 29)` across the whole second line. The
+issue's layout table was derived from the base `Bill.DoConfigInterface`, which every production
+bill overrides. §1 drew its badge there first and had to move it up onto the top line.

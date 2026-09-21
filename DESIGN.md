@@ -77,6 +77,89 @@ The player's authored order is snapshotted by bill load ID when the mode goes on
 reprojected onto the live list when it goes off, so trying the mode does not permanently
 scramble their priorities.
 
+## "Do this next" promotes, it does not force
+
+A button on each bill row moves that order to the head of the group's shared list and marks it
+until it is done. It is the same trick as round robin, run the other way: vanilla walks the list
+top-down, so putting a bill at index 0 *is* asking for it first, and no selection code of ours
+has to exist for it to work. The promotion happens on the click, so unlike an urgency comparator
+it costs nothing on the scan path.
+
+**What it cannot promise is that the order is then worked.** `WorkGiver_DoBill` skips any bill
+that is suspended, paused, out of reachable ingredients or whose `ShouldDoNow` is false, and
+takes the next one down instead. Genuinely forcing a bill means patching that selection loop —
+the one thing this whole design exists to avoid. So the marker means "first in line among the
+orders that can actually run", and the tooltip says so in those words. A player who marks an
+order with no ingredients and watches nothing happen has to be able to find out why from the
+tooltip rather than from the issue tracker.
+
+Three things had to be decided rather than derived:
+
+- **Sticky, not one-shot.** "I need twenty meals, now" is the case this exists for, and a marker
+  that evaporated on the first job start would mean clicking it nineteen more times. The cost is
+  that stickiness needs clearing rules; the cost of the alternative is the feature not doing the
+  thing it is for.
+- **Exactly one per group.** Marking a second order clears the first. Priority over several bills
+  at once is just an ordering mode wearing a button, and one nullable field keeps both the state
+  and its semantics trivial.
+- **A manual reorder cancels it.** The marker's entire effect is that the order sits at the head,
+  so dragging something above it has already overridden it. Promoting it back instead would make
+  the reorder arrows feel broken on a bill the player may not connect to the marker at all.
+
+Round robin would otherwise undo the marker once per job start — rotation sends the marked bill
+to the tail and the promotion puts it back at the head, so the list visibly jumps twice per craft
+to end up exactly where it began. `BillOrdering.TryPlanRotateToTail` therefore takes the marked
+flag and refuses. The explicit instruction outranks the automatic cadence, not the reverse.
+
+### Why "until completed" is only honest for "do X times"
+
+RimWorld has no completion event for a bill at all. A `repeatCount` bill that reaches zero is not
+removed from the list — vanilla simply stops starting it, and it sits there at 0 until the player
+deletes it. So "red until the order is completed" has to be read off the remaining count, and the
+count is meaningful in exactly one of the three repeat modes:
+
+| Repeat mode | Completion | What the marker does |
+|---|---|---|
+| Do X times | `repeatCount` hits 0 | Clears itself |
+| Do forever | Never, by definition | Stays until cleared |
+| Do until you have X | Map-wide stock reaches the target | Stays until cleared |
+
+The third is a limitation with a price attached rather than an oversight. It can only be answered
+by `RecipeWorkerCounter.CountProducts`, which walks every haulable thing on the map for any bill
+carrying a quality, hit-point or stuff filter — and the test is consulted on the bill-drawing
+path, once per visible row per frame. Adding it would put the mod's most expensive possible call
+in its hottest loop to close a case the tooltip closes with a sentence. It becomes nearly free if
+the stock-aware ordering in issue #8 §3 ever lands, since that has to cache those counts anyway.
+
+### Nothing can leave a stale marker behind
+
+The state is one nullable bill load ID on the anchor's `CompBillGroup`, not a `Bill` reference.
+That is forced rather than chosen: bills are deep-saved inside the anchor's own `billStack` node
+and `Scribe_References` cannot point into a deep-saved graph, so a reference field would come
+back null after every reload — a breakage that only shows up after a save and reads as the player
+imagining things.
+
+It pays for itself twice over, because it also makes staleness a non-problem. Every read goes
+through `NextOrder.Resolve`, which looks the ID up in the live list and drops it when the lookup
+fails. There is no reference to dangle and no path that can skip the check, so every way an order
+can stop existing ends in the same place:
+
+| How the marked order goes away | What happens |
+|---|---|
+| Deleted, or suspended and then deleted | `Patch_BillStack_Delete` clears it; `Resolve` would anyway |
+| Finished a "do X times" run | `Resolve` reads `repeatCount` and drops it |
+| Anchor bench destroyed, group re-anchors | `AdoptGroupState` carries it to the new anchor, and the outgoing one stops claiming it |
+| Group unlinked down to one bench | `Resolve` drops it — a lone bench has no group to be first in |
+| Gravship jump (every member briefly despawned) | Deliberately *not* dropped; the clearing is gated on the anchor being spawned, the same care membership gets |
+| Mod removed and re-added | The ID was never written, or it names nothing; lookup miss |
+
+The delete hook is about latency rather than correctness — it means the highlighted row goes the
+instant the order does, rather than the next time something happens to look.
+
+A transient resolved-`Bill` cache sits behind the ID so the per-row-per-frame "is this the marked
+one" question is a reference comparison rather than a fresh `GetUniqueLoadID` string. The ID stays
+the truth; writing it drops the cache, so the two cannot disagree.
+
 ## Overshoot prevention
 
 Linking creates a problem vanilla cannot have: several pawns starting the same "make 5"
@@ -196,6 +279,59 @@ when it means *already being handled*. A green edge on the same row separates th
 Drawn on ungrouped benches too: the tracker counts every bill a pawn commits to, so there is no
 reason to withhold an indicator vanilla lacks entirely.
 
+### Which order was asked for next
+
+The marked order gets a red wash, a red outline around the whole row, a "P" badge, and its arrow
+button lit in the same red. It is drawn before the active-bill marker so the green left edge
+lands on top, because a marked order is routinely *also* the one someone is working and the two
+are answers to different questions — "what did I ask for next" and "what is happening now".
+Neither is allowed to hide the other. The outline rather than a second left edge is what makes
+that possible: the left edge was already spoken for.
+
+The red also lands on top of a third signal. The overshoot guard makes a fully-claimed bill
+report "would not start now" and vanilla paints any such bill pink, so a marked bill under work
+reads *blocked* from vanilla, *urgent* from us and *being handled* from the green edge, all on
+one row. That is a lot of colour on one line and is worth looking at in a frame rather than
+reasoning about; the `do_this_next` captures are where.
+
+Group-only, like the chain icon and the ordering control. On a bench working alone vanilla's own
+reorder arrows already put an order first, so a second control doing the same thing would be
+clutter claiming to be a feature.
+
+**Vanilla has two things that could be called "how a suspended bill is marked", and the request
+conflated them.** The feature request asked for a "P" mirroring the way vanilla shows an "S" for a
+suspended bill. The "S" visible on every bill row is `TexButton.Suspend` — a *button* glyph in the
+right-hand strip, which looks identical whether or not the bill is suspended and says nothing
+about state. The actual state indicator is the word SUSPENDED, written in Medium across a 140x40
+plate centred on the row.
+
+So the badge takes the state indicator's construction — `TexUI.GrayTextBG` plate, centred caps
+label — and shrinks it into the button strip, where the letter the request was actually pointing
+at lives. A second 140x40 plate was never an option: it would land straight on the SUSPENDED one,
+and a suspended order can perfectly well also be the marked one.
+
+The button sits at `xMax - 126`, one 22px step left of the chain at `xMax - 100`, with the badge
+one step left again at `xMax - 148`. All three are on the row's top line, which is free: the
+reorder arrows take the left 24px and the delete/copy/suspend trio the right 76px. The only
+competitor is an over-long bill label — vanilla clips labels at `xMax - 40` and lets them run
+under its own buttons — which the chain icon already competes with.
+
+**The second line is not free, and the design note said it was.** The badge was first drawn under
+the button at `y + 25`, which `Bill.DoConfigInterface` supports: the base method draws only an
+info-card button at roughly `(xMax - 32, y + 37)`. But `Bill_Production` *overrides* it and draws
+something else entirely — a `WidgetRow` anchored at `(baseRect.xMax, baseRect.y + 29)` running
+`LeftThenUp` with "Details...", the repeat-mode button and the +/- controls, sweeping the whole
+second line from the right edge leftwards. Every bill this mod can hold is a `Bill_Production`,
+so the slot is occupied on every row there is, and the first capture showed the badge sitting half
+on top of "Do X times". Anything else wanting a second-line slot needs to know this before it is
+drawn — the batched round-robin counter in issue #8 §2 proposes `(xMax - 100, y + 25)`, which is
+the same occupied band.
+
+Clicking mutates the list while `BillStack.DoListing` is part-way through its index loop over
+that same list, which sounds worse than it is: the move is a remove-and-insert so the count never
+changes, and the click is reported during the mouse-up event pass, which paints nothing. Vanilla's
+own delete button, a few pixels to the right, genuinely does shrink the list mid-loop.
+
 ## Known rough edges
 
 - **Bills render pink while being worked.** `Bill.BaseColor` pinks any bill that would not
@@ -206,6 +342,13 @@ reason to withhold an indicator vanilla lacks entirely.
 - **Message and dialog look-targets point at the anchor**, not the bench that finished.
 - **A rebuilt bench is a new Thing** and silently leaves its group. Detected and shown on
   the inspect string only.
+- **A marked "do this next" order can sit red and idle.** It is at the head of the list, and
+  selection is stepping straight over it because it has no ingredients, is suspended or is
+  paused. This is the honest cost of promoting rather than forcing, and the only place it is
+  explained is the button's tooltip — there is no message, because a message would fire on every
+  work scan.
+- **A marked order in "do forever" or "do until you have X" never un-marks itself.** See the
+  table above; the clearing rule can only read a remaining count.
 
 ## Cross-mod notes
 
@@ -214,7 +357,11 @@ reason to withhold an indicator vanilla lacks entirely.
   call — and our counting keys off `job.bill`, so its batch jobs are still seen. Its batch
   crafting queues several iterations under one job, so counts are undercounted there.
 - **Nice Bill Tab** reads the `billStack` field, so the swap is transparent. Its
-  drag-reorder mutates `BillStack.Bills` directly and can fight an in-flight rotation.
+  drag-reorder mutates `BillStack.Bills` directly and can fight an in-flight rotation. It also
+  bypasses `BillStack.Reorder`, so a drag under that mod will not cancel a "do this next" marker
+  the way vanilla's own reorder does — the marked row stays red while sitting somewhere other
+  than the head. Cosmetic rather than corrupting, and it self-corrects the next time anything
+  goes through `Reorder`.
 - **Nice Bill Tab Expansion** postfixes `Building_WorkTable.ExposeData` for unrelated
   state; ordering is declared so the shared target is visible in the load graph.
 
@@ -278,7 +425,7 @@ rather than re-derived.
 
 Implemented, unit-tested, and exercised in a running game.
 
-**Offline** (`./test.sh`, 109 tests): the pure core in `Source/Core/`, plus Mono.Cecil checks
+**Offline** (`./test.sh`, 136 tests): the pure core in `Source/Core/`, plus Mono.Cecil checks
 on every vanilla member the patches depend on — including the four `RecipeDef` members the
 eligibility gate reads, and the set of `Bill` types `BillUtility.MakeNewBill` constructs. That
 second one is the gate's real dependency: a fifth branch added there would let a new bill type
@@ -294,6 +441,7 @@ All probes pass:
 | `round_robin_rotation` | Group size 2; mode toggle takes; **3 bills visible from the second bench**, which is the field swap working; head bill cycles 0 → 1 → 2 → 0 across three starts. |
 | `overshoot_guard` | A `repeatCount = 1` bill goes from "would start" to "would not" the moment one pawn claims it. |
 | `shared_save_integrity` | **Zero duplicate load-ID warnings** on save, and sharing intact afterwards. |
+| `do_this_next` | Marking promotes to the head; the marked order survives a job start that would otherwise rotate it away; marking a second order replaces the first; clicking the marked one again clears it; deleting the marked order leaves nothing marked. 13 probes. Two identically-framed captures of the second bench's tab, before and after marking — **median ΔE 11.4 over the marked row**, against 0.06% of the map changing at all. |
 | `reload_roundtrip_save` + `reload_roundtrip_load` | The save/reload round-trip, run as two game loads by `Tests/run_roundtrip.sh` (kept in `Tests/Scenarios/roundtrip/`, since it needs a fixture the rest of the suite does not) — phase A links, adds three bills, switches on round robin and saves; the script copies that save into the harness's `Fixtures/`; phase B boots with it and only probes. **After the load the two benches' `billStack` fields are the same object**, all three bills are visible from the second bench, and the group is still in round robin. |
 
 The rotation and overshoot scenarios drive real jobs carrying real bills through
@@ -322,6 +470,13 @@ green is a negative control — pointed at `minimal_colony.rws` instead, every p
 
 ### What is not yet verified
 
+- **The marked row stacked with the other two colour signals.** The captures show a marked order
+  on its own. What has not been photographed is a marked order that is *also* being worked, where
+  the red outline, the green active-bill edge and vanilla's pink "would not start now" all land on
+  one row. Reasoned about, not looked at.
+- **"Do this next" under a non-vanilla reorder.** Nice Bill Tab's drag mutates `BillStack.Bills`
+  directly rather than going through `BillStack.Reorder`, so the "a drag cancels the marker" rule
+  will not fire there. Folded into the Nice Bill Tab work in `TODO.md` §2e.
 - **The full craft loop.** The live scenarios test the decision made when a pawn commits
   to a bill, holding the job as a `Wait` rather than `DoBill`. Whether pawns then walk to
   the right bench and produce the right number of items is untested; it would make the
