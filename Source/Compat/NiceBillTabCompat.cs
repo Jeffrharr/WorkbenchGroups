@@ -65,6 +65,7 @@ namespace WorkbenchGroups.Compat
                 PatchInsertBill(harmony, drawer);
                 PatchBillRow(harmony, drawer);
                 PatchLeftPane(harmony, drawer);
+                PatchRowStripes(harmony, drawer);
             }
             catch (Exception e)
             {
@@ -152,8 +153,123 @@ namespace WorkbenchGroups.Compat
                 return;
             }
 
-            harmony.Patch(target, postfix: new HarmonyMethod(
-                typeof(NiceBillTabCompat), nameof(DrawBillPreviewPostfix)));
+            harmony.Patch(
+                target,
+                prefix: new HarmonyMethod(typeof(NiceBillTabCompat), nameof(DrawBillPreviewPrefix)),
+                postfix: new HarmonyMethod(typeof(NiceBillTabCompat), nameof(DrawBillPreviewPostfix)));
+        }
+
+        /// <summary>
+        /// Recolours the diagonal stripes behind a bill row to say what is happening to it.
+        ///
+        /// Nice Bill Tab already tints a row by its own status, but those statuses are about the
+        /// bill in isolation — pending, paused, finished. In a group the useful distinction is a
+        /// different one, and it is the distinction this whole mod creates: several benches are
+        /// working one list, so "is this being made, and is it being made *here*" is the question
+        /// the row cannot otherwise answer.
+        ///
+        /// <see cref="Patch_Bill_DoInterface.ActiveAccent"/> for a bill being worked at this
+        /// bench, <see cref="Patch_Bill_DoInterface.NextUpAccent"/> for the one that would start
+        /// next, and their own colour for everything else — so the tint is only overridden where
+        /// there is something extra to say.
+        ///
+        /// The mechanism is narrow on purpose. Their <c>DrawStatusedBillBackground</c> picks a
+        /// colour and immediately draws with it, so there is no argument to intercept; but it is
+        /// the only caller of <c>DrawTilingTextureHorizontalBottom</c>, which reads
+        /// <c>GUI.color</c>. Setting the intended colour while a row we care about is being drawn
+        /// therefore changes the stripes and nothing else — no transpiler, and their status logic
+        /// runs untouched.
+        /// </summary>
+        private static void PatchRowStripes(Harmony harmony, Type drawer)
+        {
+            MethodInfo target = AccessTools.Method(drawer, "DrawTilingTextureHorizontalBottom");
+            if (target == null)
+            {
+                Log.Warning(
+                    "[Workbench Groups] Nice Bill Tab is present but "
+                    + "TabBillsDrawer.DrawTilingTextureHorizontalBottom was not found, so its bill "
+                    + "rows will keep their own background tint. Group behaviour is unaffected.");
+                return;
+            }
+
+            harmony.Patch(target, prefix: new HarmonyMethod(
+                typeof(NiceBillTabCompat), nameof(StripePrefix)));
+        }
+
+        /// <summary>
+        /// Colour to paint the current row's stripes, or null to leave Nice Bill Tab's own.
+        /// Set for the duration of one row's draw.
+        /// </summary>
+        private static Color? stripeOverride;
+
+        private static void DrawBillPreviewPrefix(Bill bill, bool drawButtons)
+        {
+            stripeOverride = drawButtons ? StripeColorFor(bill) : null;
+        }
+
+        /// <summary>
+        /// Keeps their alpha and replaces only the hue. The alpha is how they distinguish a
+        /// pending row from a finished one, and it is not ours to overrule — we are answering a
+        /// different question on the same pixels.
+        /// </summary>
+        private static void StripePrefix()
+        {
+            if (stripeOverride == null)
+            {
+                return;
+            }
+
+            Color tint = stripeOverride.Value;
+            GUI.color = new Color(tint.r, tint.g, tint.b, GUI.color.a);
+        }
+
+        private static Color? StripeColorFor(Bill bill)
+        {
+            Building_WorkTable bench = Find.Selector?.SingleSelectedThing as Building_WorkTable;
+            if (bill == null || bench == null || !bench.Spawned)
+            {
+                return null;
+            }
+
+            if (InFlightTracker.IsWorkedAt(bill, bench))
+            {
+                return Patch_Bill_DoInterface.ActiveAccent;
+            }
+
+            return bill == NextUpIn(bench.billStack) ? Patch_Bill_DoInterface.NextUpAccent : (Color?)null;
+        }
+
+        private static int nextUpFrame = -1;
+
+        private static Bill nextUpBill;
+
+        /// <summary>
+        /// The bill a pawn arriving now would actually start: the first one in list order that
+        /// would run. That is not simply the top of the list — a suspended bill, one short of
+        /// ingredients, or one this mod has already handed to as many pawns as it needs is skipped
+        /// by the same <c>ShouldDoNow</c> test the work giver uses, so asking the same question
+        /// gives the same answer rather than a plausible-looking guess.
+        ///
+        /// Cached per frame because this is a per-row draw and the answer is a property of the
+        /// list, not the row: without it the tab would be O(bills squared) in <c>ShouldDoNow</c>
+        /// calls every frame it is open, and that method is patched by this mod and others.
+        /// </summary>
+        private static Bill NextUpIn(BillStack stack)
+        {
+            if (stack == null)
+            {
+                return null;
+            }
+
+            if (nextUpFrame == Time.frameCount)
+            {
+                return nextUpBill;
+            }
+
+            nextUpFrame = Time.frameCount;
+            nextUpBill = stack.Bills.FirstOrDefault(candidate => candidate.ShouldDoNow());
+
+            return nextUpBill;
         }
 
         /// <summary>
@@ -171,6 +287,10 @@ namespace WorkbenchGroups.Compat
         /// </summary>
         private static void DrawBillPreviewPostfix(Rect recipePreviewRect, Bill bill, bool drawButtons)
         {
+            // Cleared unconditionally and first: this is the only thing that scopes the stripe
+            // colour to one row, and leaving it set would tint whatever their tab drew next.
+            stripeOverride = null;
+
             if (!drawButtons || bill == null)
             {
                 return;
@@ -220,6 +340,9 @@ namespace WorkbenchGroups.Compat
 
         private const float ButtonHeight = 26f;
 
+        /// <summary>Enough for "Order: Round robin", the longer of the two English labels.</summary>
+        private const float ButtonWidth = 185f;
+
         /// <summary>
         /// Room kept clear on the right for Nice Bill Tab's own enable checkbox and close button,
         /// which it draws from the tab's total size at y=0 and so are unaffected by pushing the
@@ -248,10 +371,14 @@ namespace WorkbenchGroups.Compat
                 return;
             }
 
+            // Left-aligned and only as wide as it needs to be. Spanning the pane made a short
+            // label float in the middle of a very wide button, which read as a header bar rather
+            // than as something to press. Clamped so a long translation cannot grow it back under
+            // their checkbox and close button.
             reservedStrip = new Rect(
                 rect.x,
                 rect.y,
-                rect.width - TopRightControlsWidth,
+                Mathf.Min(ButtonWidth, rect.width - TopRightControlsWidth),
                 ButtonHeight);
 
             rect.yMin += StripHeight;

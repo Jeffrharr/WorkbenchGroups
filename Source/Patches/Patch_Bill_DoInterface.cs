@@ -38,8 +38,24 @@ namespace WorkbenchGroups.Patches
 
         private const float IconSize = 22f;
 
-        /// <summary>Accent for a bill someone is currently working.</summary>
-        private static readonly Color ActiveAccent = new Color(0.45f, 0.8f, 0.45f, 1f);
+        /// <summary>
+        /// Accent for a bill someone is currently working.
+        ///
+        /// Public because the replacement bills tab tints its row backgrounds with it (see
+        /// <see cref="Compat.NiceBillTabCompat"/>). One definition, so "green means someone is
+        /// making this" survives a change of tab rather than being two similar greens that drift.
+        /// </summary>
+        public static readonly Color ActiveAccent = new Color(0.45f, 0.8f, 0.45f, 1f);
+
+        /// <summary>
+        /// Accent for the bill that would be started next.
+        ///
+        /// Blue rather than a paler green on purpose: "being made" and "about to be made" are
+        /// different states, and two shades of one hue read as an intensity — more urgent, more
+        /// progressed — rather than as a different kind of thing. It is lighter than the green is
+        /// saturated because it is the weaker claim of the two; nothing is happening yet.
+        /// </summary>
+        public static readonly Color NextUpAccent = new Color(0.45f, 0.68f, 0.92f, 1f);
 
         /// <summary>
         /// Low enough to read as a tint rather than a panel. The row already carries vanilla's
