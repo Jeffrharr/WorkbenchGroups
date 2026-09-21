@@ -23,9 +23,13 @@ namespace WorkbenchGroups
         private static readonly Texture2D UnlinkTex = ContentFinder<Texture2D>.Get("UI/Commands/UnlinkStorageSettings");
         private static readonly Texture2D SelectLinkedTex = ContentFinder<Texture2D>.Get("UI/Commands/SelectAllLinked");
 
-        // Vanilla's two-arrow cycle, borrowed for "work the list in turn". Authored at gizmo size,
-        // unlike the reorder arrows in UI/Buttons, which are list-row art and blur when scaled up.
-        private static readonly Texture2D OrderingTex = ContentFinder<Texture2D>.Get("UI/Commands/SwapOutfits");
+        // The one icon in this mod that is not vanilla's. Two vanilla candidates were tried and
+        // looked at on screen first, which is the only way either flaw was going to be found:
+        // UI/Commands/SwapOutfits renders as a pawn's head and reads as something about
+        // colonists, and UI/Buttons/ReorderDown is list-row art that scales up into a yellow
+        // wedge large enough to crowd the gizmo's own label. A plain cycle glyph says "in turn"
+        // and says nothing else.
+        private static readonly Texture2D OrderingTex = ContentFinder<Texture2D>.Get("UI/Commands/WBG_Ordering");
 
         private const int LinkGroupKey = 63140021;
         private const int UnlinkGroupKey = 63140022;

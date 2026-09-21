@@ -63,9 +63,11 @@ A. Yes — this mod was written with Claude, reviewed and tested by a human.</de
          it must load first so its routing decisions are made against our shared stack. -->
     <li>giwaffed.HaulersDream</li>
 
-    <!-- Nice Bill Tab prefixes ITab_Bills.FillTab and implements drag-reorder by mutating
-         BillStack.Bills directly. It reads the billStack *field*, so our field swap is
-         transparent to it, but round-robin rotation and an in-progress drag can fight. -->
+    <!-- Nice Bill Tab prefixes ITab_Bills.FillTab and draws its own tab. It reads the billStack
+         *field*, so our field swap is transparent to it, but it reorders by mutating
+         BillStack.Bills directly (never calling Reorder), pastes by inserting directly (never
+         calling AddBill), and never invokes Bill.DoInterface. Source/Compat/NiceBillTabCompat.cs
+         patches it by name at runtime, so it has to be loaded for those patches to find it. -->
     <li>Andromeda.NiceBillTab</li>
 
     <!-- Nice Bill Tab Expansion postfixes Building_WorkTable.ExposeData (for its hidden-recipe

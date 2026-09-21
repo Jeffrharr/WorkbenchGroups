@@ -244,41 +244,34 @@ and enough workers, products come out roughly 1/1/1 rather than 3/0/0.
 remembered per-(bill, bench) tick would let a scenario show that one bench failing an
 ingredient search does not mute the bill at the other.
 
-### 2e. Nice Bill Tab compatibility — a planned follow-up, not a bug hunt
+### 2e. Nice Bill Tab compatibility — DONE, and it was a bug hunt after all
 
-The tab-side UI in this mod is drawn by Harmony postfixes, and that is fine alone and fragile
-alongside Nice Bill Tab, which prefixes `ITab_Bills.FillTab` and rebuilds the panel.
+Resolved in `Source/Compat/NiceBillTabCompat.cs`; the reasoning is in DESIGN.md under "Nice Bill
+Tab: what a replacement tab actually costs". Left here because the framing below was wrong in a way
+worth remembering.
 
-**The specific mechanism, so nobody re-derives it:** a Harmony postfix still runs when a prefix
-skips the original. So when Nice Bill Tab replaces the tab, our postfix keeps drawing into a
-panel laid out by someone else. Two things ride on that:
+This item called the risk cosmetic — "nothing here writes state" — and picked option 3 of the three
+listed, which was right. But two of the four things that broke were **correctness bugs**, and the
+reason this item could not see them is that it reasoned about *our* patches drawing into *their*
+panel and never asked what their panel does instead of calling ours:
 
-- `Patch_ITab_Bills_FillTab` draws the ordering dropdown at a fixed rect
-  (`168, 2, 190, 26`), chosen as the gap between vanilla's "Add bill" and paste buttons. Under a
-  rebuilt tab that gap may hold something else.
-- `Patch_Bill_DoInterface` (chain icon, active-row highlight) is safer: it postfixes
-  `Bill.DoInterface` and positions everything from the *returned* row rect, so it follows the row
-  wherever the other mod puts it. It only breaks if Nice Bill Tab draws rows without calling
-  `DoInterface` at all.
+- `HandleBillDrop` reorders with a bare `Bills.Remove`/`Bills.Insert`, so `BillStack.Reorder`
+  never fires and the round-robin snapshot went stale — the player's arrangement was discarded on
+  switching back to in-order. Fixed by comparing against a remembered order
+  (`Core.OrderDivergence`) rather than by patching their handler, so any mod that mutates the list
+  directly is covered.
+- `TabBillsDrawer.InsertBill` pastes with a bare `Bills.Insert`, so the unfinished-thing gate on
+  `AddBill` was bypassed and a gun bill could enter a shared stack.
 
-Neither is a correctness risk — nothing here writes state — so the failure mode is cosmetic
-overlap, not a broken save. That is why the ordering control is *also* reflected in the inspect
-line: a group left in the wrong mode is a preference, not data loss.
+The lesson generalises past this mod: **"which of our patches might draw in the wrong place" is a
+much smaller question than "which of our chokepoints does this mod route around".** The next
+tab-replacing mod gets audited with the second question.
 
-**What the work actually is**, once the feature set settles:
-
-1. Get the mod installed. It is not on this machine — `Runner/fetch_mods.sh` pulls a scenario's
-   `requiredMods` from the Workshop via anonymous SteamCMD, which may refuse for a paid app's
-   items; the fallback is subscribing in-game.
-2. Run the existing scenarios with it active and *look at the frames*. Every probe will pass
-   either way, because probes read state and this is entirely a drawing problem — the same trap
-   that hid the unclaimed-bench and stale-Languages failures.
-3. Decide between: detecting a rebuilt tab and skipping our own draw; asking for a rect from a
-   layout helper rather than hardcoding one; or exposing the ordering control somewhere neither
-   mod owns.
-
-Do this after the UI stops moving. Every layout change invalidates the frames, and the whole cost
-of this item is in looking at frames.
+One trap worth keeping, found while verifying the gizmo icon: **`--mod-overlay` installs assemblies
+and nothing else.** A texture added in a worktree is not in the overlay, so the game loads it from
+the main checkout, does not find it, and draws `BadTex` — a magenta X that looks exactly like a
+wrong ContentFinder path. Install the whole versioned folder instead:
+`--install <worktree>/1.6:<main-checkout>/1.6`.
 
 ### 2f. Conflicting mods, generally
 
@@ -290,7 +283,10 @@ probes still pass — those two are the ones that rewrite the surfaces we depend
 
 ## 3. Smaller loose ends
 
-- `BillGroupGizmos.OrderingCommand` uses `TexCommand.RearmTrap` as a placeholder icon.
+- ~~`BillGroupGizmos.OrderingCommand` uses a placeholder icon.~~ Done: it ships a cycle glyph at
+  `1.6/Textures/UI/Commands/WBG_Ordering.png`, this mod's only non-vanilla texture. Two vanilla
+  icons were tried on screen first and both failed in ways only a capture shows — `SwapOutfits`
+  renders as a pawn's head, `ReorderDown` scales into a wedge that crowds the label.
 - The unlink gizmo acts on the whole selection; confirm that reads correctly when benches
   from two different groups are selected at once.
 - **Profile at colony scale.** `Tests/Scenarios/hot_path_profile.json` now measures an unpaused

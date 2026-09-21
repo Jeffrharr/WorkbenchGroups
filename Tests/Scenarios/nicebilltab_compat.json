@@ -1,0 +1,47 @@
+{
+  "name": "nicebilltab_compat",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "14", "height": "10" } },
+    { "type": "PlaceThings", "args": { "def": "ElectricStove", "layout": "cells", "cells": "-3,0; 3,0", "rot": "South" } },
+
+    {
+      "comment": "Load-bearing for the gizmo half of this scenario: BillGroupGizmos.GizmosFor requires Faction.OfPlayer, so unclaimed benches draw no gizmos at all and the ordering fallback would be invisible for the wrong reason. The first run of this scenario missed that and showed vanilla's 'Claim' button instead.",
+      "type": "WbgClaimBenches",
+      "args": { "def": "ElectricStove" }
+    },
+
+    {
+      "comment": "Round robin rather than in-order because it is the mode whose UI this scenario exists to check: the chain badge and the in-progress marker are only interesting once bills are rotating and a pawn has committed to one.",
+      "type": "WbgLinkBenches",
+      "args": { "def": "ElectricStove", "limit": "2", "mode": "RoundRobin" }
+    },
+    { "type": "Probe", "args": { "probeName": "wbg_group_size", "expectedValue": "2", "tolerance": "0" } },
+
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealSimple", "count": "5" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealFine", "count": "5" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealSurvival", "count": "5" } },
+
+    {
+      "comment": "Puts one bill in flight so the in-progress marker has something to mark. Without it the capture cannot distinguish 'the marker is correctly absent' from 'the marker never draws'.",
+      "type": "WbgSimulateBillStart",
+      "args": {}
+    },
+
+    {
+      "comment": "The second bench: it owns no bills of its own and shows the group's, so its tab is the one that proves sharing is visible through whichever tab implementation is drawing.",
+      "type": "WbgFocusBench",
+      "args": { "def": "ElectricStove", "index": "1" }
+    },
+    { "type": "LookAt", "args": { "zoom": "12" } },
+    { "type": "Wait", "args": { "frames": "20" } },
+
+    {
+      "comment": "First capture of a scenario carries the HUD regardless of hideUi, so this one is deliberately spent and the graded comparison is the second.",
+      "type": "Screenshot",
+      "args": { "fileName": "nbt_warmup.png", "hideUi": "false" }
+    },
+    { "type": "Wait", "args": { "frames": "10" } },
+    { "type": "Screenshot", "args": { "fileName": "nbt_bills_tab.png", "hideUi": "false" } }
+  ]
+}
