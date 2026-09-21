@@ -368,14 +368,69 @@ own delete button, a few pixels to the right, genuinely does shrink the list mid
   returned job. We never touch that result — our only patch there swaps a field around the
   call — and our counting keys off `job.bill`, so its batch jobs are still seen. Its batch
   crafting queues several iterations under one job, so counts are undercounted there.
-- **Nice Bill Tab** reads the `billStack` field, so the swap is transparent. Its
-  drag-reorder mutates `BillStack.Bills` directly and can fight an in-flight rotation. It also
-  bypasses `BillStack.Reorder`, so a drag under that mod will not cancel a "do this next" marker
-  the way vanilla's own reorder does — the marked row stays red while sitting somewhere other
-  than the head. Cosmetic rather than corrupting, and it self-corrects the next time anything
-  goes through `Reorder`.
+- **Nice Bill Tab** reads the `billStack` field, so the swap is transparent, and its
+  "is anyone working this" test keys off `pawn.CurJob.bill`, which is already group-correct.
+  Everything else it touches needed work — see below.
 - **Nice Bill Tab Expansion** postfixes `Building_WorkTable.ExposeData` for unrelated
   state; ordering is declared so the shared target is visible in the load graph.
+
+### Nice Bill Tab: what a replacement tab actually costs
+
+Nice Bill Tab prefixes `ITab_Bills.FillTab`, returns false, and draws a two-pane tab of its own.
+The shared list survives that untouched. What does not survive is every assumption about *who is
+doing the drawing and the adding*, and two of the four consequences were correctness bugs rather
+than cosmetic ones. Worth recording in full, because each was invisible to every probe we had:
+they all read state, and three of the four are about drawing.
+
+**Its drag-reorder bypasses `BillStack.Reorder`.** `HandleBillDrop` calls `Bills.Remove` then
+`Bills.Insert` on the list itself, so `Patch_BillStack_Reorder` — our hook for "the player
+re-authored the order" — never fires. Under round robin the canonical snapshot then went stale
+with no trace, and switching back to in-order restored an arrangement from whenever the mode was
+switched on, silently discarding the one the player had just made.
+
+The fix deliberately does *not* patch their drag handler. `Core.OrderDivergence` compares the live
+list against what we last left it as, which catches any mod that mutates the list directly,
+including ones not written yet, and needs nothing from them. The comparison has to distinguish a
+reorder from an add or a delete — both are routine between checks — so both sequences are projected
+onto the bills they have in common and those projections compared. `CompBillGroup.lastKnownOrderIds`
+is the baseline, scribed because a drag can be separated from the next check by a save.
+
+The same bypass means a drag under that mod does not cancel a "do this next" marker the way
+vanilla's own reorder does, so the marked row can stay red while sitting somewhere other than the
+head. Cosmetic rather than corrupting, and it self-corrects the next time anything goes through
+`Reorder`.
+
+**Its clipboard paste bypasses `BillStack.AddBill`.** `TabBillsDrawer.InsertBill` assigns
+`bill.billStack` and calls `Bills.Insert` directly. Our unfinished-thing gate is a prefix on
+`AddBill`, justified on the grounds that every route passes through it — and this one does not, so
+an assault rifle bill could be pasted into a linked machining table and strand its `UnfinishedThing`
+on the anchor. This one *is* fixed by patching their method, reflectively, because a refusal needs a
+real chokepoint and there is no lazy equivalent. Their other paste route, `InsertBillBizarre`, pops
+the tail and calls `AddBill`, so it stays gated by the existing prefix and is left alone.
+
+**It never calls `Bill.DoInterface`.** Rows are drawn by `DrawBillPreview`, so the chain icons and
+the in-progress marker vanished — and the tab then looks exactly like the mod is switched off, which
+is why `Patch_Bill_DoInterface` bothers to record the frame it last drew on. The annotations moved
+into a shared `DrawRowAnnotations` that their row drawer is postfixed onto. A compact variant drops
+the background wash, because their rows already carry a status tint and a second translucent green
+over it reads as a rendering fault; the edge bar stays, because their tint marks one bill and ours
+marks every bill actually committed to, which in a group is routinely several.
+
+**There is nowhere stable to put the ordering button.** Their tab is a different size and puts a
+search field exactly where ours goes. More to the point their top strip shifts by 110 pixels
+depending on whether a recipe is selected, so no rect is safe. The control falls back to a gizmo,
+which is space neither mod has to negotiate for; the tab button and the gizmo share
+`OrderingMenu` so the two homes cannot drift, and exactly one is ever shown.
+
+That last decision turns on a detail worth stating: **Nice Bill Tab has a runtime toggle**, a
+checkbox in its own tab corner that hands drawing back to vanilla mid-session with no event and no
+reload. So "is it installed" is the wrong question for anything layout-related, and both layouts
+have to work in one session. `NiceBillTabCompat.IsDrawingTab()` is therefore read per frame rather
+than cached at startup.
+
+All of it is resolved by name at runtime. Referencing `NiceBillTab.dll` would turn a soft dependency
+into a hard one, and a player without the mod would get a type load failure instead of a file that
+simply never runs.
 
 ### The shape of our third-party exposure
 
@@ -452,6 +507,7 @@ All probes pass:
 | `link_smoke` | The mod loads. 19 work tables get the comp; no errors, no failed patches. |
 | `round_robin_rotation` | Group size 2; mode toggle takes; **3 bills visible from the second bench**, which is the field swap working; head bill cycles 0 → 1 → 2 → 0 across three starts. |
 | `overshoot_guard` | A `repeatCount = 1` bill goes from "would start" to "would not" the moment one pawn claims it. |
+| `nicebilltab_compat` | Runs with Nice Bill Tab active and is **graded on the frame, not the probes** — its one probe passes identically with the compatibility layer absent, because every difference is drawn. Against the same scenario on `main`: chain badges appear on all three rows, the in-progress bar appears on exactly the bill a pawn committed to, and the ordering button stops being drawn across their search box. |
 | `shared_save_integrity` | **Zero duplicate load-ID warnings** on save, and sharing intact afterwards. |
 | `do_this_next` | Marking promotes to the head; the marked order survives a job start that would otherwise rotate it away; marking a second order replaces the first; clicking the marked one again clears it; deleting the marked order leaves nothing marked. 13 probes. Two identically-framed captures of the second bench's tab, before and after marking — **median ΔE 11.4 over the marked row**, against 0.06% of the map changing at all. |
 | `reload_roundtrip_save` + `reload_roundtrip_load` | The save/reload round-trip, run as two game loads by `Tests/run_roundtrip.sh` (kept in `Tests/Scenarios/roundtrip/`, since it needs a fixture the rest of the suite does not) — phase A links, adds three bills, switches on round robin and saves; the script copies that save into the harness's `Fixtures/`; phase B boots with it and only probes. **After the load the two benches' `billStack` fields are the same object**, all three bills are visible from the second bench, and the group is still in round robin. |
