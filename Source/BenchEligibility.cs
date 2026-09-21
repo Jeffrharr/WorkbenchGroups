@@ -44,24 +44,110 @@ namespace WorkbenchGroups
         }
 
         /// <summary>
+        /// Benches-to-recipes, inverted from the recipe database once on first use.
+        ///
+        /// Deliberately not <c>ThingDef.AllRecipes</c>: reading that property from our startup
+        /// injector would build and permanently freeze vanilla's <c>allRecipesCached</c> for every
+        /// bench in the game, making any later <c>recipeUsers</c> edit invisible to everyone — not
+        /// just to us. See <see cref="RecipeUserIndex"/> for the full reasoning, and for what was
+        /// measured before concluding this was ours to fix.
+        ///
+        /// Built lazily rather than in a static constructor so the ordering stays explicit: the
+        /// first caller is the injector, which runs once every def is loaded.
+        /// </summary>
+        private static Dictionary<string, List<BenchRecipe>> recipeIndex;
+
+        private static Dictionary<string, List<BenchRecipe>> RecipeIndex
+        {
+            get
+            {
+                if (recipeIndex == null)
+                {
+                    List<RecipeDef> allRecipes = DefDatabase<RecipeDef>.AllDefsListForReading;
+                    List<RecipeEntry> entries = new List<RecipeEntry>(allRecipes.Count);
+
+                    foreach (RecipeDef recipe in allRecipes)
+                    {
+                        entries.Add(new RecipeEntry(
+                            recipe.defName,
+                            ShapeOf(recipe),
+                            NamesOf(recipe.recipeUsers)));
+                    }
+
+                    recipeIndex = RecipeUserIndex.Build(entries);
+                }
+
+                return recipeIndex;
+            }
+        }
+
+        /// <summary>The four fields <c>BillUtility.MakeNewBill</c> branches on, lifted off a def.</summary>
+        private static RecipeShape ShapeOf(RecipeDef recipe)
+        {
+            return new RecipeShape(
+                recipe.UsesUnfinishedThing,
+                recipe.mechResurrection,
+                recipe.gestationCycles,
+                recipe.formingTicks);
+        }
+
+        /// <summary>defNames of a <c>recipeUsers</c> list, which is routinely null.</summary>
+        private static string[] NamesOf(List<ThingDef> defs)
+        {
+            if (defs == null)
+            {
+                return new string[0];
+            }
+
+            string[] names = new string[defs.Count];
+            for (int i = 0; i < defs.Count; i++)
+            {
+                names[i] = defs[i]?.defName;
+            }
+
+            return names;
+        }
+
+        /// <summary>
+        /// Every recipe a bench def offers, in the order <c>AllRecipes</c> would have listed them.
+        ///
+        /// <c>def.recipes</c> is read directly because it is the plain XML-backed list; it is the
+        /// derived, cached <c>AllRecipes</c> that must not be touched.
+        /// </summary>
+        private static List<BenchRecipe> RecipesOf(ThingDef def)
+        {
+            if (def == null)
+            {
+                return null;
+            }
+
+            List<BenchRecipe> own = new List<BenchRecipe>();
+            if (def.recipes != null)
+            {
+                foreach (RecipeDef recipe in def.recipes)
+                {
+                    own.Add(new BenchRecipe(recipe.defName, ShapeOf(recipe)));
+                }
+            }
+
+            return RecipeUserIndex.RecipesOn(RecipeIndex, def.defName, own);
+        }
+
+        /// <summary>
         /// The recipe shapes of a def, in the form <see cref="RecipeGate"/> reasons about.
         /// </summary>
         private static List<RecipeShape> ShapesOf(ThingDef def)
         {
-            List<RecipeDef> recipes = def?.AllRecipes;
+            List<BenchRecipe> recipes = RecipesOf(def);
             if (recipes == null)
             {
                 return null;
             }
 
             List<RecipeShape> shapes = new List<RecipeShape>(recipes.Count);
-            foreach (RecipeDef recipe in recipes)
+            foreach (BenchRecipe recipe in recipes)
             {
-                shapes.Add(new RecipeShape(
-                    recipe.UsesUnfinishedThing,
-                    recipe.mechResurrection,
-                    recipe.gestationCycles,
-                    recipe.formingTicks));
+                shapes.Add(recipe.Shape);
             }
 
             return shapes;
@@ -144,10 +230,17 @@ namespace WorkbenchGroups
             return bill != null && bill.GetType() == typeof(Bill_Production);
         }
 
-        /// <summary>Recipe defNames for a bench's def, for the same-recipe-set link rule.</summary>
+        /// <summary>
+        /// Recipe defNames for a bench's def, for the same-recipe-set link rule.
+        ///
+        /// Answered from the same index the eligibility gate uses rather than from
+        /// <c>AllRecipes</c>, so the two can never disagree about what a bench makes — and so that
+        /// the link path does not quietly reintroduce the cache-freezing read that
+        /// <see cref="RecipeUserIndex"/> exists to avoid.
+        /// </summary>
         public static string[] RecipeNamesOf(Building_WorkTable bench)
         {
-            List<RecipeDef> recipes = bench?.def?.AllRecipes;
+            List<BenchRecipe> recipes = RecipesOf(bench?.def);
             if (recipes == null)
             {
                 return new string[0];
@@ -156,7 +249,7 @@ namespace WorkbenchGroups
             string[] names = new string[recipes.Count];
             for (int i = 0; i < recipes.Count; i++)
             {
-                names[i] = recipes[i].defName;
+                names[i] = recipes[i].DefName;
             }
 
             return names;
