@@ -46,7 +46,26 @@ namespace WorkbenchGroups.Patches
     {
         public static bool Prefix(BillStack __instance, Bill bill)
         {
-            if (BenchEligibility.IsShareableBill(bill) || !IsSharedStack(__instance))
+            return AllowInto(__instance, bill);
+        }
+
+        /// <summary>
+        /// The gate itself, refusal message included, separated from the patch so a caller that
+        /// never reaches <c>AddBill</c> can apply exactly the same rule.
+        ///
+        /// That is not hypothetical. Nice Bill Tab's "paste bill here" builds the bill and puts it
+        /// in the list with a bare <c>Bills.Insert</c>, never touching <c>AddBill</c>, so the
+        /// prefix above — the one chokepoint the class remark calls "the one route every path
+        /// passes through" — is simply not on that path. See <c>Compat.NiceBillTabCompat</c>.
+        ///
+        /// Shared rather than reimplemented because two copies of a rule about what may enter a
+        /// save is two copies to keep in step, and the failure mode of them drifting is a stranded
+        /// unfinished item rather than an error.
+        /// </summary>
+        /// <returns>True if the bill may go in; false if it was refused and the caller must stop.</returns>
+        public static bool AllowInto(BillStack stack, Bill bill)
+        {
+            if (BenchEligibility.IsShareableBill(bill) || !IsSharedStack(stack))
             {
                 return true;
             }

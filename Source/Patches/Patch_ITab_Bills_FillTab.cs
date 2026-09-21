@@ -1,8 +1,8 @@
 using HarmonyLib;
 using RimWorld;
-using System.Collections.Generic;
 using UnityEngine;
 using Verse;
+using WorkbenchGroups.Compat;
 
 namespace WorkbenchGroups.Patches
 {
@@ -60,6 +60,20 @@ namespace WorkbenchGroups.Patches
 
         public static void Postfix()
         {
+            // A Harmony postfix still runs when a prefix has skipped the original, so with a
+            // replacement tab active this would draw a button into a panel laid out by someone
+            // else. Nice Bill Tab's tab is a different size, puts a search field exactly where
+            // this button goes, and shifts its top strip by 110 pixels depending on whether a
+            // recipe is selected — there is no rect here worth choosing. The control moves to a
+            // gizmo instead, which is space neither mod has to negotiate for.
+            //
+            // Asked per frame rather than once at startup because their toggle is a checkbox in
+            // the tab itself: the same session can have both layouts.
+            if (NiceBillTabCompat.IsDrawingTab())
+            {
+                return;
+            }
+
             Building_WorkTable bench = Find.Selector?.SingleSelectedThing as Building_WorkTable;
             if (bench == null || !bench.Spawned)
             {
@@ -73,11 +87,11 @@ namespace WorkbenchGroups.Patches
             }
 
             CompBillGroup anchorComp = index.AnchorOf(bench)?.GetComp<CompBillGroup>();
-            OrderingMode current = anchorComp?.Ordering ?? OrderingMode.InOrder;
+            OrderingMode current = OrderingMenu.CurrentOf(anchorComp);
 
-            if (Widgets.ButtonText(ButtonRect, "WBG_CommandOrdering".Translate(LabelOf(current))))
+            if (Widgets.ButtonText(ButtonRect, "WBG_CommandOrdering".Translate(OrderingMenu.LabelOf(current))))
             {
-                Find.WindowStack.Add(new FloatMenu(OrderingOptions(anchorComp, current)));
+                Find.WindowStack.Add(new FloatMenu(OrderingMenu.OptionsFor(anchorComp, current)));
             }
 
             // Hover-gated for the same reason as the bill rows: this runs every frame the tab is
@@ -120,37 +134,5 @@ namespace WorkbenchGroups.Patches
                 0x77B6_0001);
         }
 
-        /// <summary>
-        /// One entry per mode, the current one included, so the menu keeps the same entries in the
-        /// same places rather than reshuffling as state changes. Re-picking the current mode is a
-        /// no-op: <see cref="RoundRobin.SetOrdering"/> returns early when nothing changes, which
-        /// matters because switching *in* is what snapshots the player's ordering.
-        /// </summary>
-        private static List<FloatMenuOption> OrderingOptions(CompBillGroup anchorComp, OrderingMode current)
-        {
-            List<FloatMenuOption> options = new List<FloatMenuOption>();
-
-            foreach (OrderingMode mode in new[] { OrderingMode.InOrder, OrderingMode.RoundRobin })
-            {
-                OrderingMode chosen = mode;
-                string label = mode == current
-                    ? "WBG_OrderingCurrent".Translate(LabelOf(mode))
-                    : LabelOf(mode);
-
-                options.Add(new FloatMenuOption(label, delegate
-                {
-                    RoundRobin.SetOrdering(anchorComp, chosen);
-                }));
-            }
-
-            return options;
-        }
-
-        private static string LabelOf(OrderingMode mode)
-        {
-            return mode == OrderingMode.RoundRobin
-                ? "WBG_ModeRoundRobin".Translate()
-                : "WBG_ModeInOrder".Translate();
-        }
     }
 }
