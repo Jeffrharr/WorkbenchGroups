@@ -218,6 +218,62 @@ reason to withhold an indicator vanilla lacks entirely.
 - **Nice Bill Tab Expansion** postfixes `Building_WorkTable.ExposeData` for unrelated
   state; ordering is declared so the shared target is visible in the load graph.
 
+### The shape of our third-party exposure
+
+A compatibility pass over the mods we declare a load order against turned up something worth
+stating plainly, because it is not what we expected to find.
+
+The worry going in was **double counting**: every member of a group points its `billStack`
+field at one `BillStack`, so a mod summing `billStack.Count` across the colony's benches would
+report three linked stoves with four orders as twelve. Nothing measured does this. The mods that
+enumerate bills do it per bench from an open tab, not colony-wide, and the one colony-wide walk
+found (Hauler's Dream's `MakeColony`) is a debug action.
+
+The real exposure is the other half of the same design: **`bill.billStack.billGiver` resolves to
+the anchor, for everyone, not just for us.** This mod exists because vanilla's job code follows
+the bench a pawn walked to rather than the bench that owns the bill — but any mod that
+reimplements "which bench does this bill belong to" from `billStack.billGiver` gets the anchor,
+and has no way to know a group is involved.
+
+Nice Bill Tab's `BillValidator.CanExecuteBill` is the concrete case. It resolves the work table
+from `bill.billStack?.billGiver`, then gates on *that* bench being unforbidden, reachable, and
+`CurrentlyUsableForBills()`. In a group that is always the anchor, so a bill that a pawn could
+happily work at another member is reported unworkable — "Cannot reach work table", "Work table is
+not usable" — whenever the anchor alone is unpowered, forbidden or walled off. The bills still
+get worked; the tab's explanation of why they are not is wrong.
+
+Not fixable from here, and worth being honest about rather than filing as someone's bug. The
+anchor genuinely owns the stack, a long tail of vanilla hard-casts `billStack.billGiver` and would
+break if it did not, and anything we did to make the answer per-bench would have to guess which
+bench the asker meant. What it changes is where to look first when a report arrives: a *wrong
+explanation in another mod's UI* is now a known symptom, not a mystery.
+
+### Why the `AddBill` refusal still returns `false`
+
+`Patch_BillStack_AddBill` returns `false` to keep an unshareable bill out of a shared stack,
+which skips vanilla's body *and* every lower-priority prefix *and* the original's postfixes.
+Hauler's Dream postfixes the same method, so that was filed as a risk to its bookkeeping. Checked
+rather than assumed, and it is fine, for two separate reasons:
+
+- Its `Patch_Bill_Production_Clone.Carry` is a `ConditionalWeakTable`, so the entry for a refused
+  bill dies with the bill. There is nothing to leave stale.
+- Its other branch calls `SetBatch` for a newly added bill. Skipping that is not a tolerable
+  side effect but the *correct* outcome — registering a batch against a bill that is in no stack
+  is exactly the divergence the issue was worried about, and our returning `false` prevents it.
+
+What the Harmony framing misses is that a prefix only protects against *patches*. **Everybody Gets
+One** does not patch `AddBill` at all: it transpiles `ITab_Bills.FillTab` and replaces the call
+site with its own `AddBillAndPasteCounter`, which calls `AddBill` and then, unconditionally,
+writes the bill into a saved `Dictionary<Bill_Production, QuerySearch>` on a map component. Our
+refusal stops the add — it is the same method — but cannot stop a caller's follow-up. So a refused
+paste leaves a strongly-referenced, save-persisted entry keyed on a bill that is in no stack, saved
+by reference against nothing.
+
+Only the paste route, only for an unshareable bill, only onto a grouped bench, and no cheap fix:
+refusing earlier would mean owning the tab's paste button, which is layout we do not own and which
+Nice Bill Tab already rebuilds. Recorded here so that if it is ever reported it is recognised
+rather than re-derived.
+
 ## Status
 
 Implemented, unit-tested, and exercised in a running game.
