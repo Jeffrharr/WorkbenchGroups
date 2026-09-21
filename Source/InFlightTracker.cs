@@ -44,6 +44,38 @@ namespace WorkbenchGroups
             return workers.TryGetValue(bill, out HashSet<Pawn> set) ? set.Count : 0;
         }
 
+        /// <summary>
+        /// Whether anyone is working this bill *at this particular bench*.
+        ///
+        /// <see cref="InFlight"/> answers "is anyone working this at all", which is what the
+        /// overshoot guard needs, because a group's count is shared. The bills tab needs the
+        /// narrower question: the list it shows belongs to the whole group, so "someone is making
+        /// this" and "someone is making this *here*" are different facts, and only the second
+        /// explains what the bench in front of you is doing.
+        ///
+        /// The bench is read back off the pawn's job rather than recorded here, because the job
+        /// is what decides it: <c>WorkGiver_DoBill</c> anchors everything on the bench the pawn
+        /// walked to and stores it as <c>targetA</c>. A copy of our own would be a second answer
+        /// to a question already answered, and free to drift from it.
+        /// </summary>
+        public static bool IsWorkedAt(Bill bill, Thing bench)
+        {
+            if (bill == null || bench == null || !workers.TryGetValue(bill, out HashSet<Pawn> set))
+            {
+                return false;
+            }
+
+            foreach (Pawn pawn in set)
+            {
+                if (pawn?.CurJob?.targetA.Thing == bench)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public static void Increment(Bill bill, Pawn pawn)
         {
             if (bill == null || pawn == null)
