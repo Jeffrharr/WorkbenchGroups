@@ -40,6 +40,33 @@ namespace WorkbenchGroups
         private OrderingMode ordering = OrderingMode.InOrder;
 
         /// <summary>
+        /// Anchor only: unique load ID of the one order the player marked "do this next", or null.
+        ///
+        /// A load ID rather than a <c>Bill</c> reference on purpose. Bills are deep-saved inside
+        /// the anchor's own <c>billStack</c> node, and a <c>Scribe_References</c> field cannot
+        /// point into a deep-saved graph — it would come back null on every load, a breakage that
+        /// only appears after a reload and reads as the player imagining things. Resolving an ID
+        /// against the live list also turns "the marked bill no longer exists" into a lookup
+        /// miss rather than a dangling pointer, which is the whole of the staleness story.
+        ///
+        /// Exactly one per group. Marking a second order clears the first; priority over several
+        /// bills at once is just an ordering mode again, and a single nullable field keeps both
+        /// the state and its semantics trivial.
+        /// </summary>
+        private string nextOrderBillId;
+
+        /// <summary>
+        /// Not saved: the bill <see cref="nextOrderBillId"/> last resolved to.
+        ///
+        /// The ID is the truth and this is a cache, because "is this row the marked one" is asked
+        /// once per visible row per frame while the tab is open and <c>Bill.GetUniqueLoadID</c>
+        /// concatenates a fresh string on every call. Holding the object turns that question into
+        /// a reference comparison; the ID is only re-read when the cache misses, which is once
+        /// after a load and once after the marked bill goes away.
+        /// </summary>
+        private Bill nextOrderBillCache;
+
+        /// <summary>
         /// Anchor only: bill load IDs in the order the player authored, snapshotted when round
         /// robin is switched on so switching it off can put the list back.
         /// </summary>
@@ -66,12 +93,41 @@ namespace WorkbenchGroups
 
         public List<string> CanonicalOrderIds => canonicalOrderIds;
 
+        /// <summary>
+        /// The marked order's load ID. Writing it drops the resolved-bill cache, so the next read
+        /// goes back to the list — the two can never disagree.
+        /// </summary>
+        public string NextOrderBillId
+        {
+            get => nextOrderBillId;
+            set
+            {
+                nextOrderBillId = value;
+                nextOrderBillCache = null;
+            }
+        }
+
+        /// <summary>
+        /// The cache behind <see cref="NextOrderBillId"/>. Read and written only by
+        /// <see cref="NextOrder"/>, which owns the rule for when it is still valid.
+        /// </summary>
+        public Bill NextOrderBillCache
+        {
+            get => nextOrderBillCache;
+            set => nextOrderBillCache = value;
+        }
+
         public override void PostExposeData()
         {
             base.PostExposeData();
             Scribe_References.Look(ref anchor, "wbgAnchor");
             Scribe_Values.Look(ref ordering, "wbgOrdering", OrderingMode.InOrder);
             Scribe_Collections.Look(ref canonicalOrderIds, "wbgCanonicalOrder", LookMode.Value);
+
+            // Null default, so a save written before this feature existed loads as "nothing
+            // marked" rather than needing a migration. The cache is deliberately not scribed:
+            // it is rebuilt from this ID the first time anything asks.
+            Scribe_Values.Look(ref nextOrderBillId, "wbgNextOrderBill", null);
 
             if (Scribe.mode == LoadSaveMode.PostLoadInit && canonicalOrderIds == null)
             {
@@ -173,6 +229,18 @@ namespace WorkbenchGroups
 
             ordering = previousAnchor.ordering;
             canonicalOrderIds = new List<string>(previousAnchor.canonicalOrderIds);
+
+            // The marked order must move with the group, not with the bench. The shared stack
+            // object itself is handed over intact, so the bill the ID names is still in the list
+            // the new anchor now owns — losing the marker here would silently un-mark an order
+            // because some unrelated bench blew up. The cache comes across too: it is the same
+            // Bill object in the same list, so it is still valid.
+            nextOrderBillId = previousAnchor.nextOrderBillId;
+            nextOrderBillCache = previousAnchor.nextOrderBillCache;
+
+            // And the outgoing anchor stops claiming it, so a bench that is later re-linked into
+            // some other group does not arrive carrying a marker for a bill it no longer holds.
+            previousAnchor.NextOrderBillId = null;
         }
 
         /// <summary>Leaves the group, keeping this bench's own list.</summary>

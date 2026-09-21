@@ -142,6 +142,43 @@ public class ApiCompatibilityTests
             "RecipeWorkerCounter.CountProducts no longer exists");
     }
 
+    // --- Bill row UI (chain icons, active marker, "do this next") ---
+
+    [Test]
+    public void Bill_DoInterface_StillReturnsTheRowRect()
+    {
+        // Every annotation this mod draws on a bill row is positioned from this return value
+        // rather than from absolute coordinates, which is what lets the row move under another
+        // mod without the icons detaching from it. A void return would take that away quietly: a
+        // Harmony postfix declaring a __result parameter on a void method fails to apply, and the
+        // annotations would simply stop appearing.
+        var method = MethodOf("RimWorld.Bill", "DoInterface", 4);
+
+        Assert.That(method, Is.Not.Null, "Bill.DoInterface no longer exists");
+        Assert.That(method!.ReturnType.FullName, Is.EqualTo("UnityEngine.Rect"),
+            "Bill.DoInterface no longer returns the row rect — every row annotation loses its anchor");
+    }
+
+    [Test]
+    public void TexButton_NextBig_StillExists()
+    {
+        // The "do this next" button's icon. Reused rather than shipped, so the control reads in an
+        // idiom players already have; a missing texture throws from a static constructor during
+        // startup, which takes every patch in the mod down with it rather than just the button.
+        Assert.That(GetType("Verse.TexButton")?.Fields.SingleOrDefault(f => f.Name == "NextBig"),
+            Is.Not.Null, "TexButton.NextBig no longer exists");
+    }
+
+    [Test]
+    public void TexUI_GrayTextBG_StillExists()
+    {
+        // The plate behind the "P" badge — and the same texture vanilla puts behind its own
+        // SUSPENDED overlay a few lines further down Bill.DoInterface. Sharing it is what keeps
+        // the badge in vanilla's idiom rather than merely near it.
+        Assert.That(GetType("Verse.TexUI")?.Fields.SingleOrDefault(f => f.Name == "GrayTextBG"),
+            Is.Not.Null, "TexUI.GrayTextBG no longer exists — the badge loses vanilla's backing plate");
+    }
+
     // --- Job plumbing (in-flight tracking, round-robin trigger) ---
 
     [Test]

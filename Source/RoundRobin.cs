@@ -33,7 +33,8 @@ namespace WorkbenchGroups
                 return;
             }
 
-            if (!IsRoundRobinGroup(anchor))
+            CompBillGroup anchorComp = RoundRobinStateOf(anchor);
+            if (anchorComp == null)
             {
                 return;
             }
@@ -44,7 +45,17 @@ namespace WorkbenchGroups
             // The plan is computed in the pure core, which is also what refuses index -1. Vanilla's
             // BillStack.Reorder does not: given a bill that has been deleted mid-craft it would
             // add a foreign bill to the stack rather than doing nothing.
-            if (!BillOrdering.TryPlanRotateToTail(bills.Count, index, out int removeAt, out int insertAt))
+            //
+            // The core is also told whether this is the group's "do this next" order, because
+            // otherwise the two features undo each other once per job start: rotation sends the
+            // marked bill to the tail and the marker puts it straight back at the head, so the
+            // list visibly jumps twice per craft to end up exactly where it began.
+            if (!BillOrdering.TryPlanRotateToTail(
+                    bills.Count,
+                    index,
+                    NextOrder.IsNextOrder(anchorComp, bill),
+                    out int removeAt,
+                    out int insertAt))
             {
                 return;
             }
@@ -105,6 +116,12 @@ namespace WorkbenchGroups
             {
                 RestoreAuthoredOrder(stack, anchorComp.CanonicalOrderIds);
                 anchorComp.CanonicalOrderIds.Clear();
+
+                // Reprojecting the authored order rewrites the whole list, which would drop a
+                // marked "do this next" order back wherever it was authored while its row stayed
+                // highlighted. The marker outranks the snapshot for the same reason it outranks
+                // rotation: it is the more recent, more explicit instruction.
+                NextOrder.PromoteToHead(anchorComp);
             }
 
             anchorComp.Ordering = mode;
@@ -134,16 +151,23 @@ namespace WorkbenchGroups
             }
         }
 
-        private static bool IsRoundRobinGroup(Building_WorkTable anchor)
+        /// <summary>
+        /// The group state behind a bench that is really running round robin, or null.
+        ///
+        /// Returns the comp rather than a bool because the caller needs it anyway to ask whether
+        /// the started bill is the group's marked one, and looking it up twice would walk the
+        /// bench's comp list twice on a path that runs on every job start in the colony.
+        /// </summary>
+        private static CompBillGroup RoundRobinStateOf(Building_WorkTable anchor)
         {
             BillGroupIndex index = BillGroupIndex.For(anchor.Map);
             if (index == null || index.GroupSize(anchor) < 2)
             {
-                return false;
+                return null;
             }
 
             CompBillGroup comp = anchor.GetComp<CompBillGroup>();
-            return comp != null && comp.Ordering == OrderingMode.RoundRobin;
+            return comp != null && comp.Ordering == OrderingMode.RoundRobin ? comp : null;
         }
     }
 }

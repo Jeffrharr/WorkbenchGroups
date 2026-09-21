@@ -5,7 +5,8 @@ using Verse;
 namespace WorkbenchGroups.Patches
 {
     /// <summary>
-    /// Keeps a round-robin group's remembered ordering in step with the player dragging bills.
+    /// Keeps a group's remembered ordering, and its "do this next" marker, in step with the
+    /// player dragging bills.
     ///
     /// Sharing the reorder itself needs no code: every member points at one <c>BillStack</c>, so
     /// moving a bill at one bench moves it at all of them by construction. The problem is the
@@ -19,6 +20,11 @@ namespace WorkbenchGroups.Patches
     /// replaced with the list as it now stands. That does bake in whatever rotation round robin
     /// had applied, and that is the intended reading: the list they just arranged is the list
     /// they were looking at, so it is the one they meant.
+    ///
+    /// The same reading settles the "do this next" marker. Its entire effect is that the marked
+    /// order sits at the head of the list, so a drag that puts something above it has already
+    /// overridden it, and the honest response is to drop the marker rather than to promote the
+    /// bill back and make the reorder arrows feel broken.
     /// </summary>
     [HarmonyPatch(typeof(BillStack), nameof(BillStack.Reorder))]
     public static class Patch_BillStack_Reorder
@@ -37,7 +43,16 @@ namespace WorkbenchGroups.Patches
             }
 
             CompBillGroup comp = anchor.GetComp<CompBillGroup>();
-            if (comp == null || comp.Ordering != OrderingMode.RoundRobin)
+            if (comp == null)
+            {
+                return;
+            }
+
+            // Runs in every ordering mode, unlike the snapshot below: the marker is mode-agnostic
+            // by design, so the drag that overrides it has to be noticed in every mode too.
+            NextOrder.ClearIfDisplacedFromHead(comp);
+
+            if (comp.Ordering != OrderingMode.RoundRobin)
             {
                 return;
             }
