@@ -257,4 +257,27 @@ namespace WorkbenchGroups.Probes
             return WbgSaveGameStep.DuplicateLoadIdWarnings;
         }
     }
+
+    /// <summary>
+    /// Which queued bill is the group's marked "do this next" order, or -1 for none.
+    ///
+    /// Read through the shipped <c>NextOrder.Resolve</c> rather than off the comp field, so the
+    /// probe exercises the real staleness rule instead of a re-implementation of it. That is what
+    /// lets one probe assert both halves of the feature: that marking takes, and that a marker
+    /// whose order has gone is reported as gone rather than as a load ID nobody can resolve.
+    /// </summary>
+    public sealed class NextOrderSlotProbe : IProbe, IProbeMetadata
+    {
+        public string Name => "wbg_next_order_slot";
+        public string Description => "Index, in the order the scenario queued them, of the group's marked \"do this next\" order. -1 when nothing is marked.";
+        public string Unit => "slot";
+
+        public float Read(Map map)
+        {
+            Bill marked = NextOrder.Resolve(WbgNextOrderSupport.AnchorComp(map));
+            return marked is Bill_Production production
+                ? WbgTestState.Bills.IndexOf(production)
+                : -1f;
+        }
+    }
 }

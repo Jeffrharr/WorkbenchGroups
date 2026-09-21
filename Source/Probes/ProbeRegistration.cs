@@ -22,6 +22,7 @@ namespace WorkbenchGroups.Probes
             ProbeRegistry.Register(new SelectedCountProbe());
             ProbeRegistry.Register(new ActiveBillSlotProbe());
             ProbeRegistry.Register(new DuplicateSaveIdProbe());
+            ProbeRegistry.Register(new NextOrderSlotProbe());
         }
     }
 }
