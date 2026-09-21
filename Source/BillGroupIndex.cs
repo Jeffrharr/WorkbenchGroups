@@ -262,6 +262,15 @@ namespace WorkbenchGroups
         /// <summary>
         /// Intersection of every member's recipe list. Null when the group has no members, which
         /// reads as "no constraint" rather than "nothing allowed".
+        ///
+        /// This one is allowed to read <c>AllRecipes</c>, unlike <see cref="BenchEligibility"/>,
+        /// and the difference is timing rather than taste. The rule that matters is that nothing
+        /// of ours may be the *first* thing to build vanilla's <c>allRecipesCached</c>, because it
+        /// is never invalidated and freezing it early hides later <c>recipeUsers</c> edits from
+        /// every other mod. That risk belongs to startup. By the time a group exists, benches have
+        /// spawned, and spawning already forces the cache through vanilla's own
+        /// <c>ThingListGroupHelper.PotentialBillGiver</c> test. Here we also need the
+        /// <c>RecipeDef</c> objects themselves for set intersection, not just their names.
         /// </summary>
         private HashSet<RecipeDef> BuildCommonRecipes(Building_WorkTable anchor)
         {

@@ -32,6 +32,7 @@
     <Compile Include="../../Source/Core/CanonicalOrder.cs" Link="Core/CanonicalOrder.cs" />
     <Compile Include="../../Source/Core/GroupMembership.cs" Link="Core/GroupMembership.cs" />
     <Compile Include="../../Source/Core/RecipeGate.cs" Link="Core/RecipeGate.cs" />
+    <Compile Include="../../Source/Core/RecipeUserIndex.cs" Link="Core/RecipeUserIndex.cs" />
     <Compile Include="../../Source/Core/ClassExclusionList.cs" Link="Core/ClassExclusionList.cs" />
     <Compile Include="../../Source/Core/BillLinkage.cs" Link="Core/BillLinkage.cs" />
   </ItemGroup>

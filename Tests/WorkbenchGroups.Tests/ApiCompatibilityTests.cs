@@ -228,6 +228,39 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void RecipeDef_recipeUsers_And_ThingDef_recipes_StillExist()
+    {
+        // These two fields are the entire input to RecipeUserIndex, which exists so our startup
+        // pass never reads ThingDef.AllRecipes and never freezes vanilla's allRecipesCached for
+        // the rest of the game. Rename either one and the index silently builds empty: every
+        // bench loses its recipes, so nothing is groupable and no gizmo appears anywhere. That
+        // failure is total, silent, and looks exactly like "the mod didn't load".
+        var recipeDef = GetType("Verse.RecipeDef");
+        var thingDef = GetType("Verse.ThingDef");
+
+        Assert.That(recipeDef?.Fields.SingleOrDefault(f => f.Name == "recipeUsers"), Is.Not.Null,
+            "RecipeDef.recipeUsers no longer exists — RecipeUserIndex has nothing to invert");
+        Assert.That(thingDef?.Fields.SingleOrDefault(f => f.Name == "recipes"), Is.Not.Null,
+            "ThingDef.recipes no longer exists — RecipeUserIndex loses a bench's own recipes");
+    }
+
+    [Test]
+    public void ThingDef_AllRecipes_IsStillTheCachedProperty_WeDeliberatelyAvoid()
+    {
+        // The compatibility hazard RecipeUserIndex works around: AllRecipes is derived and cached
+        // in allRecipesCached with no invalidation anywhere in vanilla, so the first reader freezes
+        // it permanently. If a future RimWorld adds a reset, or drops the cache, the workaround
+        // stops being necessary and this test is the prompt to reconsider it rather than carry it
+        // forever.
+        var thingDef = GetType("Verse.ThingDef");
+
+        Assert.That(thingDef?.Properties.SingleOrDefault(p => p.Name == "AllRecipes"), Is.Not.Null,
+            "ThingDef.AllRecipes no longer exists");
+        Assert.That(thingDef?.Fields.SingleOrDefault(f => f.Name == "allRecipesCached"), Is.Not.Null,
+            "ThingDef.allRecipesCached is gone — re-check whether RecipeUserIndex is still needed");
+    }
+
+    [Test]
     public void MakeNewBill_StillBranchesOnFourThingsAndNothingElse()
     {
         // The gate is only as correct as this branch list is current. Counting the Bill types
