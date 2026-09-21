@@ -72,6 +72,20 @@ namespace WorkbenchGroups
         /// </summary>
         private List<string> canonicalOrderIds = new List<string>();
 
+        /// <summary>
+        /// Anchor only: bill load IDs in the order *this mod* last left the list.
+        ///
+        /// Distinct from <see cref="canonicalOrderIds"/>, which is the order the player authored.
+        /// This one is the order we expect to find when we next look, and its only job is to let
+        /// <see cref="Core.OrderDivergence"/> notice that something else rearranged the list
+        /// behind us — Nice Bill Tab's drag-and-drop bypasses <c>BillStack.Reorder</c> entirely,
+        /// so no reorder patch fires and the canonical snapshot goes stale with no trace.
+        ///
+        /// Scribed because the gap between a drag and the next check can span a save: the player
+        /// can rearrange the list, quit, reload, and only then switch the group back to in-order.
+        /// </summary>
+        private List<string> lastKnownOrderIds = new List<string>();
+
         /// <summary>Set only between the save prefix and its finalizer.</summary>
         private BillStack sharedStackDuringSave;
 
@@ -92,6 +106,8 @@ namespace WorkbenchGroups
         }
 
         public List<string> CanonicalOrderIds => canonicalOrderIds;
+
+        public List<string> LastKnownOrderIds => lastKnownOrderIds;
 
         /// <summary>
         /// The marked order's load ID. Writing it drops the resolved-bill cache, so the next read
@@ -123,6 +139,7 @@ namespace WorkbenchGroups
             Scribe_References.Look(ref anchor, "wbgAnchor");
             Scribe_Values.Look(ref ordering, "wbgOrdering", OrderingMode.InOrder);
             Scribe_Collections.Look(ref canonicalOrderIds, "wbgCanonicalOrder", LookMode.Value);
+            Scribe_Collections.Look(ref lastKnownOrderIds, "wbgLastKnownOrder", LookMode.Value);
 
             // Null default, so a save written before this feature existed loads as "nothing
             // marked" rather than needing a migration. The cache is deliberately not scribed:
@@ -132,6 +149,15 @@ namespace WorkbenchGroups
             if (Scribe.mode == LoadSaveMode.PostLoadInit && canonicalOrderIds == null)
             {
                 canonicalOrderIds = new List<string>();
+            }
+
+            // A save written before this field existed loads it as null. Empty is also the right
+            // starting value on its own terms: an empty "expected" order shares no bills with the
+            // live list, which OrderDivergence reads as "nothing I remember moved" rather than as
+            // a spurious reorder on the first check after loading.
+            if (Scribe.mode == LoadSaveMode.PostLoadInit && lastKnownOrderIds == null)
+            {
+                lastKnownOrderIds = new List<string>();
             }
         }
 
@@ -229,6 +255,7 @@ namespace WorkbenchGroups
 
             ordering = previousAnchor.ordering;
             canonicalOrderIds = new List<string>(previousAnchor.canonicalOrderIds);
+            lastKnownOrderIds = new List<string>(previousAnchor.lastKnownOrderIds);
 
             // The marked order must move with the group, not with the bench. The shared stack
             // object itself is handed over intact, so the bill the ID names is still in the list

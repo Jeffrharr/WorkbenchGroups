@@ -39,6 +39,12 @@ namespace WorkbenchGroups
                 return;
             }
 
+            // Before rotating, settle whether the list we are about to rotate is still the list we
+            // left. Another mod's rearrangement is the player's current intent and has to be
+            // absorbed into the snapshot *now*: once our own rotation lands on top of it the two
+            // are indistinguishable.
+            AbsorbExternalReorder(anchorComp, stack);
+
             List<Bill> bills = stack.Bills;
             int index = bills.IndexOf(bill);
 
@@ -57,12 +63,79 @@ namespace WorkbenchGroups
                     out int removeAt,
                     out int insertAt))
             {
+                // Still record: a no-op rotation is a perfectly good "this is where we left it",
+                // and skipping it would leave the expectation stale enough to read the *next*
+                // add or delete as a reorder.
+                RecordLastKnownOrder(anchorComp, stack);
                 return;
             }
 
             Bill moved = bills[removeAt];
             bills.RemoveAt(removeAt);
             bills.Insert(insertAt, moved);
+
+            RecordLastKnownOrder(anchorComp, stack);
+        }
+
+        /// <summary>
+        /// Folds a rearrangement made by something other than this mod into the canonical order.
+        ///
+        /// <c>Patch_BillStack_Reorder</c> catches the vanilla path eagerly, and this catches
+        /// everything else lazily, the next time we look at the list. The lazy check is the one
+        /// that matters in practice: Nice Bill Tab's drag-and-drop calls neither
+        /// <c>BillStack.Reorder</c> nor anything else patchable, it just mutates
+        /// <c>BillStack.Bills</c>, so there is no event to hook and no method of theirs worth
+        /// patching — any other mod could do the same thing tomorrow.
+        ///
+        /// Treating a foreign reorder as the player re-authoring their order is the same judgement
+        /// <c>Patch_BillStack_Reorder</c> already makes, and for the same reason: the list they
+        /// arranged is the list they were looking at.
+        /// </summary>
+        private static void AbsorbExternalReorder(CompBillGroup anchorComp, BillStack stack)
+        {
+            if (anchorComp == null || stack == null)
+            {
+                return;
+            }
+
+            string[] current = LoadIdsOf(stack);
+
+            if (!OrderDivergence.Diverged(anchorComp.LastKnownOrderIds.ToArray(), current))
+            {
+                return;
+            }
+
+            anchorComp.CanonicalOrderIds.Clear();
+            anchorComp.CanonicalOrderIds.AddRange(current);
+        }
+
+        /// <summary>
+        /// Records the list as it now stands, as the baseline the next divergence check compares
+        /// against. Every path that deliberately changes the order has to call this, or the change
+        /// gets attributed to another mod on the next check.
+        /// </summary>
+        private static void RecordLastKnownOrder(CompBillGroup anchorComp, BillStack stack)
+        {
+            if (anchorComp == null || stack == null)
+            {
+                return;
+            }
+
+            anchorComp.LastKnownOrderIds.Clear();
+            anchorComp.LastKnownOrderIds.AddRange(LoadIdsOf(stack));
+        }
+
+        private static string[] LoadIdsOf(BillStack stack)
+        {
+            List<Bill> bills = stack.Bills;
+            string[] ids = new string[bills.Count];
+
+            for (int i = 0; i < bills.Count; i++)
+            {
+                ids[i] = bills[i].GetUniqueLoadID();
+            }
+
+            return ids;
         }
 
         /// <summary>
@@ -82,10 +155,12 @@ namespace WorkbenchGroups
             }
 
             anchorComp.CanonicalOrderIds.Clear();
-            foreach (Bill bill in stack.Bills)
-            {
-                anchorComp.CanonicalOrderIds.Add(bill.GetUniqueLoadID());
-            }
+            anchorComp.CanonicalOrderIds.AddRange(LoadIdsOf(stack));
+
+            // The eager path has just accounted for this reorder, so the lazy check must not
+            // account for it again — harmless if it did, but it would mean two mechanisms
+            // disagreeing about who handled what.
+            RecordLastKnownOrder(anchorComp, stack);
         }
 
         /// <summary>
@@ -106,14 +181,18 @@ namespace WorkbenchGroups
                 anchorComp.CanonicalOrderIds.Clear();
                 if (stack != null)
                 {
-                    foreach (Bill bill in stack.Bills)
-                    {
-                        anchorComp.CanonicalOrderIds.Add(bill.GetUniqueLoadID());
-                    }
+                    anchorComp.CanonicalOrderIds.AddRange(LoadIdsOf(stack));
+                    RecordLastKnownOrder(anchorComp, stack);
                 }
             }
             else if (stack != null)
             {
+                // Last chance to notice a drag made while the mode was running. Without this the
+                // most direct route to the bug — rearrange the list, switch straight back to
+                // in-order — is also the one route the rotation path never gets to check, because
+                // no pawn has to start a job in between.
+                AbsorbExternalReorder(anchorComp, stack);
+
                 RestoreAuthoredOrder(stack, anchorComp.CanonicalOrderIds);
                 anchorComp.CanonicalOrderIds.Clear();
 
@@ -122,6 +201,11 @@ namespace WorkbenchGroups
                 // highlighted. The marker outranks the snapshot for the same reason it outranks
                 // rotation: it is the more recent, more explicit instruction.
                 NextOrder.PromoteToHead(anchorComp);
+
+                // After the promotion, not before: both moves are ours, and the baseline has to
+                // describe the list as we finally left it or the promotion reads as a foreign
+                // reorder at the next check.
+                RecordLastKnownOrder(anchorComp, stack);
             }
 
             anchorComp.Ordering = mode;
