@@ -139,6 +139,18 @@ namespace WorkbenchGroups.Patches
         private static readonly Color BadgePlate = new Color(0.14f, 0.09f, 0.09f, 1f);
 
         /// <summary>
+        /// Nice Bill Tab's product thumbnail: 50 square, inset 4 from the row, centred vertically.
+        /// Restated here rather than read from them for the same reason this mod restates
+        /// vanilla's own rects — their layout is hardcoded in a method body with nothing to
+        /// anchor to.
+        /// </summary>
+        private const float CompactThumbnailSize = 50f;
+
+        private const float CompactThumbnailInset = 4f;
+
+        private const float CompactBadgeSize = 16f;
+
+        /// <summary>
         /// Frame on which this postfix last ran, read by <see cref="Patch_ITab_Bills_FillTab"/>.
         ///
         /// Our row annotations only appear if something actually calls <c>Bill.DoInterface</c>.
@@ -151,12 +163,30 @@ namespace WorkbenchGroups.Patches
 
         public static void Postfix(Bill __instance, Rect __result)
         {
+            DrawRowAnnotations(__instance, __result, compact: false);
+        }
+
+        /// <summary>
+        /// Draws this mod's annotations onto one bill row, wherever that row was drawn and by
+        /// whoever drew it.
+        ///
+        /// Split out of the postfix so <see cref="Compat.NiceBillTabCompat"/> can call it for a
+        /// tab that never invokes <c>Bill.DoInterface</c>. One implementation rather than a
+        /// parallel one for the replacement tab is what stops the two drifting into saying
+        /// different things about the same group.
+        /// </summary>
+        /// <param name="compact">
+        /// True for a host whose rows are taller and already carry their own status colouring, in
+        /// which case these annotations shrink to what that host does not already say.
+        /// </param>
+        public static void DrawRowAnnotations(Bill bill, Rect row, bool compact)
+        {
             LastDrawnFrame = Time.frameCount;
 
             // The index and the group size are looked up once and handed down. Map.GetComponent
-            // walks the map's component list, and this postfix runs per visible row per frame, so
-            // asking twice a row was paying for that scan twice for no reason.
-            Building_WorkTable anchor = __instance?.billStack?.billGiver as Building_WorkTable;
+            // walks the map's component list, and this runs per visible row per frame, so asking
+            // twice a row was paying for that scan twice for no reason.
+            Building_WorkTable anchor = bill?.billStack?.billGiver as Building_WorkTable;
             BillGroupIndex index = anchor != null && anchor.Spawned
                 ? BillGroupIndex.For(anchor.Map)
                 : null;
@@ -166,16 +196,19 @@ namespace WorkbenchGroups.Patches
             // marked order is routinely also the order someone is currently working, and the two
             // are answers to different questions — "what did I ask for next" and "what is
             // happening now" — so neither is allowed to hide the other.
-            if (groupSize > 1)
+            //
+            // Vanilla rows only, for now: its button and badge are laid out against vanilla's row,
+            // and a compact host's right-hand side is ingredient icons of varying count.
+            if (groupSize > 1 && !compact)
             {
-                DrawNextOrder(__instance, __result, anchor.GetComp<CompBillGroup>());
+                DrawNextOrder(bill, row, anchor.GetComp<CompBillGroup>());
             }
 
-            DrawActiveMarker(__instance, __result);
+            DrawActiveMarker(bill, row, compact);
 
             if (index != null)
             {
-                DrawLinkChain(__instance, __result, anchor, index, groupSize);
+                DrawLinkChain(bill, row, anchor, index, groupSize, compact);
             }
         }
 
@@ -309,7 +342,7 @@ namespace WorkbenchGroups.Patches
         /// just grouped ones, so there is no reason to withhold an indicator vanilla lacks
         /// entirely.
         /// </summary>
-        private static void DrawActiveMarker(Bill bill, Rect row)
+        private static void DrawActiveMarker(Bill bill, Rect row, bool compact)
         {
             int workers = InFlightTracker.InFlight(bill);
             if (workers <= 0)
@@ -320,7 +353,17 @@ namespace WorkbenchGroups.Patches
             // A wash plus a hard left edge, rather than a filled box: the postfix draws after
             // vanilla has already written the label and the buttons, so anything opaque would
             // cover them.
-            Widgets.DrawBoxSolid(row, ActiveWash);
+            //
+            // The wash is dropped for a compact host because Nice Bill Tab already tints a row's
+            // whole background by status, and laying a second translucent green over that reads as
+            // a rendering fault rather than as information. The edge bar still earns its place:
+            // their tint marks one bill (the first their 30-tick scan finds), ours marks every
+            // bill a pawn has actually committed to, which in a group is routinely several.
+            if (!compact)
+            {
+                Widgets.DrawBoxSolid(row, ActiveWash);
+            }
+
             Widgets.DrawBoxSolid(new Rect(row.x, row.y, EdgeBarWidth, row.height), ActiveAccent);
 
             // Gated on hover, like vanilla's own paste button does in ITab_Bills.FillTab.
@@ -334,8 +377,28 @@ namespace WorkbenchGroups.Patches
             }
         }
 
+        /// <summary>
+        /// A badge on the bottom-left corner of the row's product thumbnail.
+        ///
+        /// The right-hand inset used for vanilla rows is not available here: Nice Bill Tab fills
+        /// a row's right side with ingredient icons whose count varies by recipe, so a fixed
+        /// offset from <c>xMax</c> lands on them for some bills and not others. The thumbnail is
+        /// the one element of their row that is always present, always the same size, and always
+        /// in the same place, which makes its corner the only stable anchor on offer.
+        /// </summary>
+        private static Rect CompactChainRect(Rect row)
+        {
+            float thumbnailBottom = row.center.y + (CompactThumbnailSize / 2f);
+
+            return new Rect(
+                row.x + CompactThumbnailInset,
+                thumbnailBottom - CompactBadgeSize,
+                CompactBadgeSize,
+                CompactBadgeSize);
+        }
+
         private static void DrawLinkChain(
-            Bill bill, Rect __result, Building_WorkTable anchor, BillGroupIndex index, int groupSize)
+            Bill bill, Rect row, Building_WorkTable anchor, BillGroupIndex index, int groupSize, bool compact)
         {
             BillLinkState state = BillLinkage.StateFor(
                 groupSize > 1,
@@ -346,9 +409,9 @@ namespace WorkbenchGroups.Patches
                 return;
             }
 
-            Rect icon = new Rect(
-                __result.xMax - RightInset,
-                __result.y + 3f,
+            Rect icon = compact ? CompactChainRect(row) : new Rect(
+                row.xMax - RightInset,
+                row.y + 3f,
                 IconSize,
                 IconSize);
 

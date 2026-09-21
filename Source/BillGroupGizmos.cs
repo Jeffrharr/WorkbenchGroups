@@ -23,9 +23,14 @@ namespace WorkbenchGroups
         private static readonly Texture2D UnlinkTex = ContentFinder<Texture2D>.Get("UI/Commands/UnlinkStorageSettings");
         private static readonly Texture2D SelectLinkedTex = ContentFinder<Texture2D>.Get("UI/Commands/SelectAllLinked");
 
+        // Vanilla's two-arrow cycle, borrowed for "work the list in turn". Authored at gizmo size,
+        // unlike the reorder arrows in UI/Buttons, which are list-row art and blur when scaled up.
+        private static readonly Texture2D OrderingTex = ContentFinder<Texture2D>.Get("UI/Commands/SwapOutfits");
+
         private const int LinkGroupKey = 63140021;
         private const int UnlinkGroupKey = 63140022;
         private const int SelectGroupKey = 63140023;
+        private const int OrderingGroupKey = 63140024;
 
         public static IEnumerable<Gizmo> GizmosFor(CompBillGroup comp)
         {
@@ -48,9 +53,18 @@ namespace WorkbenchGroups
                 yield return UnlinkCommand();
                 yield return SelectLinkedCommand(bench, index);
 
-                // No ordering gizmo: it lives at the top of the bills tab now
-                // (Patch_ITab_Bills_FillTab). Ordering is a property of the list, and every other
-                // control that shapes the list is already there.
+                // Normally there is no ordering gizmo: it lives at the top of the bills tab
+                // (Patch_ITab_Bills_FillTab), because ordering is a property of the list and
+                // every other control that shapes the list is already there.
+                //
+                // The exception is a tab we do not own. Nice Bill Tab replaces the panel
+                // outright, and its layout offers nowhere stable to put a button, so the control
+                // falls back to gizmo space — which is ours regardless of who draws the tab.
+                // Exactly one of the two is ever shown, on the same live test.
+                if (Compat.NiceBillTabCompat.IsDrawingTab())
+                {
+                    yield return OrderingCommand(index.AnchorOf(bench)?.GetComp<CompBillGroup>());
+                }
             }
         }
 
@@ -100,6 +114,33 @@ namespace WorkbenchGroups
                     {
                         BillGroupOps.Unlink(selected.GetComp<CompBillGroup>());
                     }
+                },
+            };
+        }
+
+        /// <summary>
+        /// The ordering choice, as a gizmo, for when a replacement bills tab has left nowhere in
+        /// the panel to put it.
+        ///
+        /// Offers the same float menu as the tab button — see <see cref="OrderingMenu"/> — so the
+        /// two homes cannot drift apart. Unlike the other gizmos here this one deliberately acts
+        /// on the group rather than on the whole selection: ordering is anchor-held state, so
+        /// applying it per selected bench would write it repeatedly to the same group, and to
+        /// several groups at once when benches from two are selected together.
+        /// </summary>
+        private static Gizmo OrderingCommand(CompBillGroup anchorComp)
+        {
+            OrderingMode current = OrderingMenu.CurrentOf(anchorComp);
+
+            return new Command_Action
+            {
+                defaultLabel = "WBG_CommandOrdering".Translate(OrderingMenu.LabelOf(current)),
+                defaultDesc = "WBG_CommandOrderingDesc".Translate(),
+                icon = OrderingTex,
+                groupKey = OrderingGroupKey,
+                action = delegate
+                {
+                    Find.WindowStack.Add(new FloatMenu(OrderingMenu.OptionsFor(anchorComp, current)));
                 },
             };
         }
