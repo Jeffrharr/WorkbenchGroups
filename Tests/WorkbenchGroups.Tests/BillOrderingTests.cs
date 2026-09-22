@@ -178,17 +178,30 @@ public class BillOrderingTests
         Assert.That(BillOrdering.IsNextOrderSpent(RepeatModeCode.RepeatCount, 1), Is.False);
     }
 
-    [TestCase(RepeatModeCode.Forever)]
-    [TestCase(RepeatModeCode.TargetCount)]
-    public void The_other_repeat_modes_never_report_themselves_spent(RepeatModeCode mode)
+    [TestCase(0)]
+    [TestCase(5)]
+    public void A_do_forever_order_is_never_spent_whatever_its_count_says(int repeatCount)
     {
-        // Deliberate, and the honest limit of the feature. "Do forever" has no completion at all,
-        // and "do until you have X" can only be answered by a map-wide product count — far too
-        // expensive for a test consulted once per visible row per frame. Markers in those modes
-        // stay until the player clears them, and the tooltip says so.
+        // Intended behaviour, not a gap. "Do forever" has no completion to wait for, so there is
+        // no moment at which dropping the marker would be the right thing to do — and a forever
+        // order staying where the player put it is what vanilla does anyway.
         //
-        // The repeat count passed is zero, the value that *would* make RepeatCount report spent,
-        // so this fails rather than passing vacuously if the mode check is ever dropped.
-        Assert.That(BillOrdering.IsNextOrderSpent(mode, 0), Is.False);
+        // The zero case is the one that matters. repeatCount is a live field that keeps whatever
+        // value it last held, so a bill that ran a count down to zero and was then switched to
+        // "do forever" still reads zero. Without the mode check it would unmark itself the
+        // instant it was marked.
+        Assert.That(BillOrdering.IsNextOrderSpent(RepeatModeCode.Forever, repeatCount), Is.False);
+    }
+
+    [Test]
+    public void A_do_until_you_have_X_order_is_not_spent_here()
+    {
+        // The one deferred case. It does finish, but only a map-wide CountProducts walk can say
+        // when, and this test is consulted once per visible row per frame. Answered "not spent"
+        // deliberately rather than guessed at; issue #8 §3 picks it up once it has a count cache.
+        //
+        // Passing zero — the value that *would* make RepeatCount report spent — so this fails
+        // rather than passing vacuously if the mode check is ever dropped.
+        Assert.That(BillOrdering.IsNextOrderSpent(RepeatModeCode.TargetCount, 0), Is.False);
     }
 }

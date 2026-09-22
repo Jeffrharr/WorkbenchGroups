@@ -85,8 +85,26 @@ namespace WorkbenchGroups.Patches
         /// wants a second-line slot on these rows — the batched round-robin counter in issue #8
         /// §2 proposes <c>(xMax - 100, y + 25)</c> — needs to know this before it is drawn, not
         /// after.
+        ///
+        /// The badge is right-aligned to end just left of the button rather than pinned to a
+        /// fixed left edge, and its width is measured from the word. A fixed box was fine for one
+        /// letter; "PRIORITY" is eight, and a localisation is free to be longer still, so a
+        /// hardcoded width would clip in whichever language nobody here reads.
+        ///
+        /// Flush against the button rather than gapped away from it. A 4px gap left a sliver of
+        /// bill label showing between the plate and the arrow on a long label — one stray letter
+        /// fragment, which reads as a rendering fault rather than as spacing.
         /// </summary>
-        private const float BadgeInset = 148f;
+        private const float BadgeRightEdge = NextOrderInset;
+
+        /// <summary>Breathing room either side of the word, inside its plate.</summary>
+        private const float BadgePadding = 5f;
+
+        /// <summary>
+        /// Tall enough for a Tiny caps word, short enough to stay inside the row's top line —
+        /// which ends at <c>y + 29</c>, where <c>Bill_Production</c>'s own widget row begins.
+        /// </summary>
+        private const float BadgeHeight = 17f;
 
         /// <summary>
         /// Red, because the player asked for red and because nothing else in the bill list is.
@@ -102,6 +120,23 @@ namespace WorkbenchGroups.Patches
         /// muddy both into a colour that means neither.
         /// </summary>
         private static readonly Color NextOrderWash = new Color(0.9f, 0.25f, 0.25f, 0.13f);
+
+        /// <summary>
+        /// Opaque fill behind the badge word, and the whole reason the badge is readable.
+        ///
+        /// The first capture of the spelled-out word had only <c>TexUI.GrayTextBG</c> behind it —
+        /// a soft vignette that hides nothing — so "PRIORITY" printed straight over the tail of
+        /// the bill label and the two smeared into something unreadable. Covering is not optional
+        /// here: vanilla clips bill labels at <c>xMax - 40</c> and lets them run under its own
+        /// buttons, so there is no x on this row at which a word can avoid the label. The only
+        /// choice is whether it covers the label cleanly or fights it.
+        ///
+        /// Vanilla answers the same way a few lines below, where the SUSPENDED plate covers the
+        /// label outright rather than dodging it. So this covers too: opaque, and dark enough
+        /// that the red word on top carries. Kept slightly warm so it reads as part of the red
+        /// highlight rather than as a hole punched in the row.
+        /// </summary>
+        private static readonly Color BadgePlate = new Color(0.14f, 0.09f, 0.09f, 1f);
 
         /// <summary>
         /// Frame on which this postfix last ran, read by <see cref="Patch_ITab_Bills_FillTab"/>.
@@ -221,18 +256,32 @@ namespace WorkbenchGroups.Patches
         /// </summary>
         private static void DrawNextOrderBadge(Rect row)
         {
-            Rect badge = new Rect(row.xMax - BadgeInset, row.y + 3f, IconSize, IconSize);
-
-            GUI.DrawTexture(badge, TexUI.GrayTextBG);
-
             GameFont previousFont = Text.Font;
             TextAnchor previousAnchor = Text.Anchor;
             Color previousColor = GUI.color;
 
-            Text.Font = GameFont.Small;
+            // Tiny, and measured before the rect is built. Small fits one letter and runs a whole
+            // word straight through the chain icon; Tiny is also what vanilla uses for the status
+            // line on these same rows, so the badge is set in a size the bill list already uses.
+            Text.Font = GameFont.Tiny;
+            string word = "WBG_NextOrderBadge".Translate();
+            float width = Text.CalcSize(word).x + BadgePadding * 2f;
+
+            Rect badge = new Rect(
+                row.xMax - BadgeRightEdge - width,
+                row.y + 4f,
+                width,
+                BadgeHeight);
+
+            // Opaque first, then vanilla's plate texture over it. GrayTextBG alone is a soft
+            // vignette and hides nothing, which is what made the first spelled-out capture
+            // illegible against a long bill label.
+            Widgets.DrawBoxSolid(badge, BadgePlate);
+            GUI.DrawTexture(badge, TexUI.GrayTextBG);
+
             Text.Anchor = TextAnchor.MiddleCenter;
             GUI.color = NextOrderAccent;
-            Widgets.Label(badge, "WBG_NextOrderBadge".Translate());
+            Widgets.Label(badge, word);
 
             // Restored to whatever was there rather than to vanilla's defaults. This runs inside
             // someone else's draw call, and a postfix that resets global GUI state to its own
