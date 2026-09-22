@@ -98,6 +98,30 @@ public class NiceBillTabApiTests
     }
 
     [Test]
+    public void BillStatus_NoOneCanDo_is_still_the_fourth_member()
+    {
+        // The compat layer reads their status as a bare integer, because naming their enum in a
+        // signature would need the hard assembly reference it exists to avoid. That makes the
+        // ordinal load-bearing: insert a status above NoOneCanDo and our "leave their red alone"
+        // rule silently starts protecting a different state, which shows up as the wrong colour
+        // on a row rather than as any kind of error.
+        // Nested inside TabBillsDrawer, hence GetTypes() rather than Types — the latter is
+        // top-level only, and looking there returns null for a type that is present and fine.
+        var status = _module.GetTypes()
+            .SingleOrDefault(t => t.FullName == "NiceBillTab.TabBillsDrawer/BillStatus");
+
+        Assert.That(status, Is.Not.Null, "NiceBillTab.BillStatus no longer exists");
+
+        var noOneCanDo = status!.Fields.SingleOrDefault(f => f.Name == "NoOneCanDo");
+
+        Assert.That(noOneCanDo, Is.Not.Null, "BillStatus.NoOneCanDo no longer exists");
+        Assert.That(
+            noOneCanDo!.Constant,
+            Is.EqualTo(4),
+            "BillStatus.NoOneCanDo moved; update NiceBillTabCompat.NoOneCanDoStatus");
+    }
+
+    [Test]
     public void The_drag_handler_still_bypasses_BillStack_Reorder()
     {
         // Not a patch target — the whole point of Core.OrderDivergence is that this needs no

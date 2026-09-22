@@ -31,6 +31,7 @@
     <Compile Include="../../Source/Core/RecipeSetComparison.cs" Link="Core/RecipeSetComparison.cs" />
     <Compile Include="../../Source/Core/CanonicalOrder.cs" Link="Core/CanonicalOrder.cs" />
     <Compile Include="../../Source/Core/OrderDivergence.cs" Link="Core/OrderDivergence.cs" />
+    <Compile Include="../../Source/Core/BillAccent.cs" Link="Core/BillAccent.cs" />
     <Compile Include="../../Source/Core/GroupMembership.cs" Link="Core/GroupMembership.cs" />
     <Compile Include="../../Source/Core/RecipeGate.cs" Link="Core/RecipeGate.cs" />
     <Compile Include="../../Source/Core/RecipeUserIndex.cs" Link="Core/RecipeUserIndex.cs" />

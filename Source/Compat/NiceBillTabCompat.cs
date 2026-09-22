@@ -4,6 +4,7 @@ using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
+using WorkbenchGroups.Core;
 using WorkbenchGroups.Patches;
 
 namespace WorkbenchGroups.Compat
@@ -202,9 +203,39 @@ namespace WorkbenchGroups.Compat
         /// </summary>
         private static Color? stripeOverride;
 
-        private static void DrawBillPreviewPrefix(Bill bill, bool drawButtons)
+        /// <summary>
+        /// Nice Bill Tab's <c>BillStatus.NoOneCanDo</c>, the red one, as a bare ordinal.
+        ///
+        /// Their status is their own enum, and naming it in a signature here would need the hard
+        /// assembly reference this class exists to avoid — so the argument arrives through
+        /// Harmony's <c>__args</c> and is compared as an integer. Pinned by a Cecil test, because
+        /// an ordinal into someone else's enum is exactly the thing that silently becomes a
+        /// different member when they insert one above it.
+        /// </summary>
+        private const int NoOneCanDoStatus = 4;
+
+        private const int StatusArgIndex = 3;
+
+        private static void DrawBillPreviewPrefix(Bill bill, bool drawButtons, object[] __args)
         {
-            stripeOverride = drawButtons ? StripeColorFor(bill) : null;
+            stripeOverride = drawButtons && !IsBlocked(__args) ? StripeColorFor(bill) : null;
+        }
+
+        /// <summary>
+        /// Red wins. Nice Bill Tab already paints a row red when no colonist can do the work —
+        /// every one of them has the work type at priority zero, or none can reach it — and that
+        /// contradicts everything this mod's colours say rather than ranking against them. A row
+        /// claiming "starting next" in blue while nobody is able to start it is worse than no
+        /// colour at all, so their red is left exactly as they drew it.
+        /// </summary>
+        private static bool IsBlocked(object[] args)
+        {
+            if (args == null || args.Length <= StatusArgIndex || args[StatusArgIndex] == null)
+            {
+                return false;
+            }
+
+            return Convert.ToInt32(args[StatusArgIndex]) == NoOneCanDoStatus;
         }
 
         /// <summary>
@@ -223,53 +254,18 @@ namespace WorkbenchGroups.Compat
             GUI.color = new Color(tint.r, tint.g, tint.b, GUI.color.a);
         }
 
+        /// <summary>
+        /// Maps the shared classification onto a stripe colour. The decision itself lives in
+        /// <see cref="Patch_Bill_DoInterface.AccentFor"/>, so this tab and vanilla's cannot reach
+        /// different conclusions about the same bill.
+        /// </summary>
         private static Color? StripeColorFor(Bill bill)
         {
-            Building_WorkTable bench = Find.Selector?.SingleSelectedThing as Building_WorkTable;
-            if (bill == null || bench == null || !bench.Spawned)
-            {
-                return null;
-            }
+            BillAccent accent = Patch_Bill_DoInterface.AccentFor(bill);
 
-            if (InFlightTracker.IsWorkedAt(bill, bench))
-            {
-                return Patch_Bill_DoInterface.ActiveAccent;
-            }
-
-            return bill == NextUpIn(bench.billStack) ? Patch_Bill_DoInterface.NextUpAccent : (Color?)null;
-        }
-
-        private static int nextUpFrame = -1;
-
-        private static Bill nextUpBill;
-
-        /// <summary>
-        /// The bill a pawn arriving now would actually start: the first one in list order that
-        /// would run. That is not simply the top of the list — a suspended bill, one short of
-        /// ingredients, or one this mod has already handed to as many pawns as it needs is skipped
-        /// by the same <c>ShouldDoNow</c> test the work giver uses, so asking the same question
-        /// gives the same answer rather than a plausible-looking guess.
-        ///
-        /// Cached per frame because this is a per-row draw and the answer is a property of the
-        /// list, not the row: without it the tab would be O(bills squared) in <c>ShouldDoNow</c>
-        /// calls every frame it is open, and that method is patched by this mod and others.
-        /// </summary>
-        private static Bill NextUpIn(BillStack stack)
-        {
-            if (stack == null)
-            {
-                return null;
-            }
-
-            if (nextUpFrame == Time.frameCount)
-            {
-                return nextUpBill;
-            }
-
-            nextUpFrame = Time.frameCount;
-            nextUpBill = stack.Bills.FirstOrDefault(candidate => candidate.ShouldDoNow());
-
-            return nextUpBill;
+            return accent == BillAccent.None || accent == BillAccent.Blocked
+                ? (Color?)null
+                : Patch_Bill_DoInterface.ColourOf(accent);
         }
 
         /// <summary>

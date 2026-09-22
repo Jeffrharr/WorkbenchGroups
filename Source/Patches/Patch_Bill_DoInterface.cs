@@ -62,7 +62,7 @@ namespace WorkbenchGroups.Patches
         /// alternating stripe and, for a claimed bill, vanilla's pink "would not start now"
         /// colouring, so anything stronger fights two existing signals.
         /// </summary>
-        private static readonly Color ActiveWash = new Color(0.45f, 0.8f, 0.45f, 0.13f);
+        private const float WashAlpha = 0.13f;
 
         private const float EdgeBarWidth = 3f;
 
@@ -360,27 +360,31 @@ namespace WorkbenchGroups.Patches
         /// </summary>
         private static void DrawActiveMarker(Bill bill, Rect row, bool compact)
         {
-            int workers = InFlightTracker.InFlight(bill);
-            if (workers <= 0)
+            BillAccent accent = AccentFor(bill);
+            if (accent == BillAccent.None || accent == BillAccent.Blocked)
             {
+                // Blocked draws nothing of ours in vanilla's tab: vanilla already paints a bill it
+                // would not start, and a red bar on top of that is the same sentence twice. The
+                // state exists in the enum because the *replacement* tab needs it, where it means
+                // "leave their red alone".
                 return;
             }
 
-            // A wash plus a hard left edge, rather than a filled box: the postfix draws after
-            // vanilla has already written the label and the buttons, so anything opaque would
-            // cover them.
+            Color colour = ColourOf(accent);
+
+            // A wash plus a hard left edge, rather than a filled box: this draws after vanilla has
+            // already written the label and the buttons, so anything opaque would cover them.
             //
-            // The wash is dropped for a compact host because Nice Bill Tab already tints a row's
-            // whole background by status, and laying a second translucent green over that reads as
-            // a rendering fault rather than as information. The edge bar still earns its place:
-            // their tint marks one bill (the first their 30-tick scan finds), ours marks every
-            // bill a pawn has actually committed to, which in a group is routinely several.
-            if (!compact)
+            // The wash is dropped for a compact host because Nice Bill Tab tints a row's whole
+            // background itself — there it is that tint we recolour, so a wash on top would say
+            // the same thing twice. It is also dropped for work at another bench, the weakest of
+            // the three claims, which should not shout as loudly as the bench in front of you.
+            if (!compact && accent != BillAccent.WorkedElsewhere)
             {
-                Widgets.DrawBoxSolid(row, ActiveWash);
+                Widgets.DrawBoxSolid(row, new Color(colour.r, colour.g, colour.b, WashAlpha));
             }
 
-            Widgets.DrawBoxSolid(new Rect(row.x, row.y, EdgeBarWidth, row.height), ActiveAccent);
+            Widgets.DrawBoxSolid(new Rect(row.x, row.y, EdgeBarWidth, row.height), colour);
 
             // Gated on hover, like vanilla's own paste button does in ITab_Bills.FillTab.
             // TipRegion takes the built string, so an ungated call formats a translated string per
@@ -389,8 +393,51 @@ namespace WorkbenchGroups.Patches
             Rect tip = new Rect(row.x, row.y, EdgeBarWidth * 4f, row.height);
             if (Mouse.IsOver(tip))
             {
-                TooltipHandler.TipRegion(tip, "WBG_BillBeingWorked".Translate(workers));
+                TooltipHandler.TipRegion(tip, TooltipFor(accent, bill));
             }
+        }
+
+        /// <summary>
+        /// The one place either bills tab decides what a row is saying, so vanilla's tab and a
+        /// replacement cannot drift into meaning different things by the same colour.
+        ///
+        /// The bench is the selected one, not the stack's owner. In a group those differ — the
+        /// stack belongs to the anchor — and it is the bench the player is looking at that makes
+        /// "here" mean anything.
+        /// </summary>
+        /// <param name="blocked">
+        /// Whether nobody can do this work. Only the replacement tab passes it: it has already
+        /// computed the answer to colour its own row, and recomputing a reachability-and-work-
+        /// priority test per row per frame to tell vanilla something it already shows would be
+        /// paying twice for a worse answer.
+        /// </param>
+        public static BillAccent AccentFor(Bill bill, bool blocked = false)
+        {
+            Building_WorkTable bench = Find.Selector?.SingleSelectedThing as Building_WorkTable;
+            if (bill == null || bench == null || !bench.Spawned)
+            {
+                return BillAccent.None;
+            }
+
+            bool workedHere = InFlightTracker.IsWorkedAt(bill, bench);
+
+            return BillAccentRule.Classify(
+                blocked,
+                workedHere,
+                workedElsewhere: !workedHere && InFlightTracker.InFlight(bill) > 0,
+                isNextUp: bill == NextBillPreview.In(bench.billStack));
+        }
+
+        public static Color ColourOf(BillAccent accent)
+        {
+            return accent == BillAccent.NextUp ? NextUpAccent : ActiveAccent;
+        }
+
+        private static string TooltipFor(BillAccent accent, Bill bill)
+        {
+            return accent == BillAccent.NextUp
+                ? "WBG_BillNextUp".Translate()
+                : "WBG_BillBeingWorked".Translate(InFlightTracker.InFlight(bill));
         }
 
         /// <summary>
