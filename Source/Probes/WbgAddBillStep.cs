@@ -41,6 +41,12 @@ namespace WorkbenchGroups.Probes
                 return false;
             }
 
+            if (args.TryGetValue("suspended", out string suspended) && !bool.TryParse(suspended, out _))
+            {
+                error = $"WbgAddBill: 'suspended' is not a boolean (got '{suspended}')";
+                return false;
+            }
+
             return true;
         }
 
@@ -68,6 +74,23 @@ namespace WorkbenchGroups.Probes
             Bill_Production bill = (Bill_Production)recipe.MakeNewBill();
             bill.repeatMode = BillRepeatModeDefOf.RepeatCount;
             bill.repeatCount = args.TryGetValue("count", out string raw) ? int.Parse(raw) : 1;
+
+            // Optional rename, which is what lets a scenario build the *tightest* row on purpose
+            // rather than hoping the longest vanilla recipe name happens to be long enough. Row
+            // annotations are drawn over vanilla's label, so how much label there is to run into
+            // is the whole question, and a capture against a comfortable label proves nothing
+            // about a cramped one. Players rename bills, so this is a real row, not a synthetic.
+            if (args.TryGetValue("label", out string label) && !string.IsNullOrWhiteSpace(label))
+            {
+                bill.RenamableLabel = label;
+            }
+
+            // Vanilla stamps SUSPENDED across the row's centre on a 140x40 plate. Anything else
+            // drawn on the row has to be photographed against it rather than reasoned about.
+            if (args.TryGetValue("suspended", out string suspended) && bool.Parse(suspended))
+            {
+                bill.suspended = true;
+            }
 
             bench.billStack.AddBill(bill);
             WbgTestState.Bills.Add(bill);

@@ -123,22 +123,30 @@ namespace WorkbenchGroups.Core
         /// <summary>
         /// Whether a "do this next" marker has been satisfied and should drop off by itself.
         ///
-        /// Only "do X times" can answer this, and that is an honest limitation rather than an
-        /// omission. RimWorld has no "this order is finished" event at all: a repeat-count bill
-        /// that reaches zero is *not* removed from the list — vanilla simply stops starting it,
-        /// and it sits there at 0 until the player deletes it. So "until the order is completed"
-        /// has to be read off the remaining count, and the count is only meaningful in one of
-        /// the three repeat modes.
+        /// A marker is satisfied when a *counted* order runs out of count. RimWorld has no "this
+        /// order is finished" event of its own — a repeat-count bill that reaches zero is not
+        /// removed from the list; vanilla simply stops starting it and it sits there at 0 until
+        /// the player deletes it — so the remaining count is what "finished" means here.
         ///
-        /// The other two genuinely have no completion:
-        /// - <see cref="RepeatModeCode.Forever"/> never finishes by definition.
-        /// - <see cref="RepeatModeCode.TargetCount"/> finishes when map-wide stock reaches the
-        ///   target, which can only be learned by calling <c>RecipeWorkerCounter.CountProducts</c>
-        ///   — a map-wide walk of every haulable thing for any bill with a quality, hit-point or
-        ///   stuff filter. This test is consulted on the bill-drawing path, once per visible row
-        ///   per frame, so doing that here would put the mod's most expensive possible call in
-        ///   its hottest loop. Marked bills in those modes stay marked until unmarked; the
-        ///   tooltip says so.
+        /// <see cref="RepeatModeCode.Forever"/> therefore stays marked until the player unmarks
+        /// it, and that is the intended answer rather than a gap. An order that says "do this
+        /// forever" has no completion to wait for, so there is no moment at which clearing the
+        /// marker would be the right thing to do — and leaving it set is what the player gets in
+        /// vanilla anyway, where a forever order stays where they put it until they move it.
+        ///
+        /// <see cref="RepeatModeCode.TargetCount"/> is the one deferred case. It does finish —
+        /// when map-wide stock reaches the target — but that can only be learned from
+        /// <c>RecipeWorkerCounter.CountProducts</c>, a map-wide walk of every haulable thing for
+        /// any bill carrying a quality, hit-point or stuff filter. This test is consulted on the
+        /// bill-drawing path, once per visible row per frame, so calling it here would put the
+        /// mod's most expensive possible call in its hottest loop. It becomes nearly free once
+        /// the stock-aware ordering in issue #8 §3 lands, since that has to cache those counts
+        /// anyway.
+        ///
+        /// The mode check is load-bearing rather than defensive. <c>repeatCount</c> is a live
+        /// field that keeps whatever value it last held, so a bill that ran its count down to
+        /// zero and was then switched to "do forever" still reads zero — without the mode test
+        /// it would silently unmark itself the instant it was marked.
         /// </summary>
         /// <param name="mode">The marked bill's repeat mode.</param>
         /// <param name="repeatCount">Remaining iterations, meaningful only under

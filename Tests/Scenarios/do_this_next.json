@@ -32,6 +32,24 @@
     {"type": "Probe", "args": {"probeName": "wbg_head_bill_slot", "expectedValue": "2", "tolerance": "0"}},
     {"type": "Probe", "args": {"probeName": "wbg_next_order_slot", "expectedValue": "2", "tolerance": "0"}},
 
+    {"type": "Probe", "args": {"probeName": "wbg_active_bill_slot", "expectedValue": "2", "tolerance": "0"}},
+    {"type": "Probe", "args": {"probeName": "wbg_marked_bill_should_do_now", "expectedValue": "0", "tolerance": "0"}},
+
+    {"type": "WbgFocusBench", "args": {"def": "ElectricStove", "index": "1"}},
+    {"type": "LookAt", "args": {"zoom": "11"}},
+    {"type": "Wait", "args": {"frames": "20"}},
+    {"type": "Screenshot", "args": {"fileName": "do_this_next_worked.png", "hideUi": "false"}},
+
+    {"type": "WbgAddBill", "args": {"recipe": "CookMealLavish", "count": "3", "label": "Cook lavish meal for the wedding reception", "suspended": "true"}},
+    {"type": "WbgMarkNextOrder", "args": {"slot": "3"}},
+    {"type": "Probe", "args": {"probeName": "wbg_next_order_slot", "expectedValue": "3", "tolerance": "0"}},
+    {"type": "Probe", "args": {"probeName": "wbg_head_bill_slot", "expectedValue": "3", "tolerance": "0"}},
+
+    {"type": "WbgFocusBench", "args": {"def": "ElectricStove", "index": "1"}},
+    {"type": "LookAt", "args": {"zoom": "11"}},
+    {"type": "Wait", "args": {"frames": "20"}},
+    {"type": "Screenshot", "args": {"fileName": "do_this_next_tight.png", "hideUi": "false"}},
+
     {"type": "WbgMarkNextOrder", "args": {"slot": "0"}},
     {"type": "Probe", "args": {"probeName": "wbg_next_order_slot", "expectedValue": "0", "tolerance": "0"}},
     {"type": "Probe", "args": {"probeName": "wbg_head_bill_slot", "expectedValue": "0", "tolerance": "0"}},
@@ -44,6 +62,6 @@
     {"type": "WbgDeleteBill", "args": {"slot": "1"}},
     {"type": "Probe", "args": {"probeName": "wbg_next_order_slot", "expectedValue": "-1", "tolerance": "0"}},
 
-    {"type": "Probe", "args": {"probeName": "wbg_bills_visible_at_second_bench", "expectedValue": "2", "tolerance": "0"}}
+    {"type": "Probe", "args": {"probeName": "wbg_bills_visible_at_second_bench", "expectedValue": "3", "tolerance": "0"}}
   ]
 }

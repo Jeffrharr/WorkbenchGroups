@@ -310,11 +310,13 @@ What §3 inherits, and what it changes:
   When the urgency comparator lands, the marker becomes its `priorityTier` 0 exactly as the
   issue sketched, and that flag is where it plugs in.
 - `NextOrder.Resolve` is the single choke point for "is the marker still real". The completion
-  rule it consults, `BillOrdering.IsNextOrderSpent`, can only answer for "do X times", because
-  the other two modes need `CountProducts` and that is far too expensive once per visible row
-  per frame. **§3 makes this cheap**: it has to cache per-bill product counts anyway, so
-  finishing the clearing rule for "do until you have X" is a few lines on top of that cache and
-  should be done in the same change rather than left as a known gap.
+  rule it consults, `BillOrdering.IsNextOrderSpent`, clears a marker when a *counted* order runs
+  out of count. **"Do forever" staying marked forever is intended and settled — do not "fix" it.**
+  A forever order has no completion to wait for, and staying put is what vanilla does with an
+  order the player moved to the top of the list. Only **"do until you have X"** is deferred,
+  because it needs `CountProducts` and that is far too expensive once per visible row per frame.
+  **§3 makes that one cheap** — it has to cache per-bill product counts anyway, so finishing the
+  rule there is a few lines on top of the cache and should happen in the same change.
 - The canonical-order snapshot widening the issue asks for has a second caller now:
   `RoundRobin.SetOrdering` re-promotes the marked order after reprojecting the authored order,
   and any new list-mutating mode must do the same or the marked row goes red in the middle of

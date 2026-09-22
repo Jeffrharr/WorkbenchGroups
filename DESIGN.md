@@ -111,25 +111,36 @@ to the tail and the promotion puts it back at the head, so the list visibly jump
 to end up exactly where it began. `BillOrdering.TryPlanRotateToTail` therefore takes the marked
 flag and refuses. The explicit instruction outranks the automatic cadence, not the reverse.
 
-### Why "until completed" is only honest for "do X times"
+### When the marker clears itself
 
-RimWorld has no completion event for a bill at all. A `repeatCount` bill that reaches zero is not
-removed from the list — vanilla simply stops starting it, and it sits there at 0 until the player
-deletes it. So "red until the order is completed" has to be read off the remaining count, and the
-count is meaningful in exactly one of the three repeat modes:
+A marker is satisfied when a *counted* order runs out of count. RimWorld has no completion event
+of its own — a `repeatCount` bill that reaches zero is not removed from the list; vanilla simply
+stops starting it, and it sits there at 0 until the player deletes it — so the remaining count is
+what "finished" means here.
 
 | Repeat mode | Completion | What the marker does |
 |---|---|---|
 | Do X times | `repeatCount` hits 0 | Clears itself |
-| Do forever | Never, by definition | Stays until cleared |
-| Do until you have X | Map-wide stock reaches the target | Stays until cleared |
+| Do forever | There is none | **Stays marked until the player unmarks it** |
+| Do until you have X | Map-wide stock reaches the target | Stays marked; see below |
 
-The third is a limitation with a price attached rather than an oversight. It can only be answered
-by `RecipeWorkerCounter.CountProducts`, which walks every haulable thing on the map for any bill
-carrying a quality, hit-point or stuff filter — and the test is consulted on the bill-drawing
-path, once per visible row per frame. Adding it would put the mod's most expensive possible call
-in its hottest loop to close a case the tooltip closes with a sentence. It becomes nearly free if
-the stock-aware ordering in issue #8 §3 ever lands, since that has to cache those counts anyway.
+**A "do forever" order staying priority forever is the right answer, not a shortfall.** An order
+that says "do this forever" has no completion to wait for, so there is no moment at which
+clearing the marker would be correct — and staying put is what the player gets in vanilla anyway,
+where an order moved to the top of the list stays there until they move it. The tooltip says so
+in those terms rather than apologising for it.
+
+"Do until you have X" is the one deferred case. It does finish, but only
+`RecipeWorkerCounter.CountProducts` can say when — a map-wide walk of every haulable thing for
+any bill carrying a quality, hit-point or stuff filter — and this test is consulted on the
+bill-drawing path, once per visible row per frame. Calling it there would put the mod's most
+expensive possible call in its hottest loop. It becomes nearly free once the stock-aware ordering
+in issue #8 §3 lands, since that has to cache those counts anyway.
+
+The repeat-mode check in `BillOrdering.IsNextOrderSpent` is load-bearing rather than defensive.
+`repeatCount` is a live field that keeps whatever value it last held, so a bill that ran a count
+down to zero and was then switched to "do forever" still reads zero — without the mode test it
+would silently unmark itself the instant it was marked.
 
 ### Nothing can leave a stale marker behind
 
@@ -347,8 +358,9 @@ own delete button, a few pixels to the right, genuinely does shrink the list mid
   paused. This is the honest cost of promoting rather than forcing, and the only place it is
   explained is the button's tooltip — there is no message, because a message would fire on every
   work scan.
-- **A marked order in "do forever" or "do until you have X" never un-marks itself.** See the
-  table above; the clearing rule can only read a remaining count.
+- **A marked "do until you have X" order never un-marks itself.** The one deferred case in the
+  table above; it needs a product count this mod cannot afford on the drawing path. "Do forever"
+  is *not* in this list — staying marked is the intended answer there, not a defect.
 
 ## Cross-mod notes
 

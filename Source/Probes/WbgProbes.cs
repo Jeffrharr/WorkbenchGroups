@@ -280,4 +280,31 @@ namespace WorkbenchGroups.Probes
                 : -1f;
         }
     }
+
+    /// <summary>
+    /// Whether the group's marked order would be started right now.
+    ///
+    /// Exists to assert what a capture is supposed to be showing. A marked order that is fully
+    /// claimed reports "would not start now", and vanilla paints any such bill pink — so the
+    /// marked row carries this mod's red outline, this mod's green in-progress edge and vanilla's
+    /// pink all at once. That is a claim about three overlapping signals, and a screenshot of it
+    /// is worth nothing if the third one was never actually true in the frame.
+    /// </summary>
+    public sealed class MarkedBillShouldDoNowProbe : IProbe, IProbeMetadata
+    {
+        public string Name => "wbg_marked_bill_should_do_now";
+        public string Description => "1 if the group's marked order would be started now, 0 if not, -1 if nothing is marked.";
+        public string Unit => "boolean";
+
+        public float Read(Map map)
+        {
+            Bill marked = NextOrder.Resolve(WbgNextOrderSupport.AnchorComp(map));
+            if (marked == null)
+            {
+                return -1f;
+            }
+
+            return marked.ShouldDoNow() ? 1f : 0f;
+        }
+    }
 }
