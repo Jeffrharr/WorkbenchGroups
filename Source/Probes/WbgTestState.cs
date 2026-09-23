@@ -24,11 +24,34 @@ namespace WorkbenchGroups.Probes
         /// <summary>Pawns used to simulate a worker taking a bill, so each start is a distinct claim.</summary>
         public static readonly List<Pawn> SimulatedWorkers = new List<Pawn>();
 
+        /// <summary>The pawn that works the unfinished-item order in the craft-loop scenarios.</summary>
+        public static Pawn Crafter;
+
+        /// <summary>The pawn given only hauling, to see whether it leaves a parked item alone.</summary>
+        public static Pawn Hauler;
+
+        /// <summary>A pawn with no work at all, used to hold one bench busy.</summary>
+        public static Pawn Blocker;
+
+        /// <summary>
+        /// A loose item placed where the hauler should take it. Proves the hauler was actually
+        /// hauling, so "the unfinished item stayed put" is a finding and not an idle pawn.
+        /// </summary>
+        public static Thing ControlItem;
+
+        /// <summary>thingIDNumber of the unfinished item when it was remembered, or -1.</summary>
+        public static int RememberedUftId = -1;
+
         public static void Reset()
         {
             Benches.Clear();
             Bills.Clear();
             SimulatedWorkers.Clear();
+            Crafter = null;
+            Hauler = null;
+            Blocker = null;
+            ControlItem = null;
+            RememberedUftId = -1;
         }
     }
 }
