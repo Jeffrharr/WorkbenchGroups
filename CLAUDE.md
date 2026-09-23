@@ -20,7 +20,8 @@ replacement tab actually costs"):
 | `Bill.DoInterface` (row annotations, accents, marker) | Rows drawn by `DrawBillPreview` | Patches in `Source/Compat/NiceBillTabCompat.cs` |
 | `BillStack.Reorder` (authored order, "do next" clearing) | Drag does bare `Bills.Remove`/`Insert` | `Core.OrderDivergence` + the left-pane check |
 | `BillStack.AddBill` (unshareable-bill refusal) | Paste via `TabBillsDrawer.InsertBill` | Reflective patch on `InsertBill` |
-| `ITab_Bills.FillTab` layout (ordering button) | Their own two-pane layout | `DrawLeftPart` prefix reserves a strip |
+| `ITab_Bills.FillTab` layout (ordering and "do next" buttons) | Their own two-pane layout | `DrawLeftPart` prefix reserves a strip; "do next" acts on their `Selections` |
+| Our own list moves (rotation, promotion) showing up | They draw a cached copy, rebuilt only on their own actions | `OwnBillListMoves` + setting their `shouldRefreshFilter` |
 
 Checklist for a change in this area:
 

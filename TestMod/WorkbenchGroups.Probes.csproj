@@ -38,6 +38,7 @@
     <Compile Include="../Source/Probes/WbgNextOrderSteps.cs" Link="WbgNextOrderSteps.cs" />
     <Compile Include="../Source/Probes/WbgForceNiceBillTabStatusStep.cs" Link="WbgForceNiceBillTabStatusStep.cs" />
     <Compile Include="../Source/Probes/WbgListSteps.cs" Link="WbgListSteps.cs" />
+    <Compile Include="../Source/Probes/WbgNiceBillTabSelectionSteps.cs" Link="WbgNiceBillTabSelectionSteps.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,9 +1,12 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
+using Verse.Sound;
 using WorkbenchGroups.Core;
 using WorkbenchGroups.Patches;
 
@@ -39,6 +42,21 @@ namespace WorkbenchGroups.Compat
         /// </summary>
         private static FieldInfo enabledModField;
 
+        /// <summary>
+        /// <c>TabBillsDrawer.shouldRefreshFilter</c>: their "rebuild the cached bill list" flag.
+        /// See <see cref="OwnBillListMoves"/> for why we set it.
+        /// </summary>
+        private static FieldInfo refreshFilterField;
+
+        /// <summary>The <see cref="OwnBillListMoves.Version"/> their cached list last reflected.</summary>
+        private static int seenMovesVersion = -1;
+
+        /// <summary><c>TabBillsDrawer.Selections</c>: their static list of selected rows.</summary>
+        private static FieldInfo selectionsField;
+
+        /// <summary><c>RecipeSelection.SelectedBill</c>: the bill a selected row stands for, if any.</summary>
+        private static FieldInfo selectedBillField;
+
         /// <summary>Whether the mod is loaded at all. Everything here is a no-op when false.</summary>
         public static bool IsPresent { get; private set; }
 
@@ -54,6 +72,15 @@ namespace WorkbenchGroups.Compat
             }
 
             enabledModField = AccessTools.Field(settings, "EnabledMod");
+
+            // Their selection, for the "do this next" button above their list. Resolved here
+            // rather than per frame; a miss leaves the button showing "nothing selected", which
+            // is wrong but harmless, and NiceBillTabApiTests pins both names so it is caught
+            // before a release rather than in play.
+            selectionsField = AccessTools.Field(drawer, "Selections");
+            refreshFilterField = AccessTools.Field(drawer, "shouldRefreshFilter");
+            selectedBillField = AccessTools.Field(
+                AccessTools.TypeByName("NiceBillTab.RecipeSelection"), "SelectedBill");
 
             // Harmony binds injected parameters by name, so these patches depend on argument names
             // in someone else's assembly — a rename between their releases throws here rather than
@@ -368,6 +395,15 @@ namespace WorkbenchGroups.Compat
         /// <summary>Strip reserved by the prefix, in the same GUI space the postfix draws in.</summary>
         private static Rect reservedStrip;
 
+        /// <summary>Where the "do this next" button goes this frame, or zero for nowhere.</summary>
+        private static Rect doNextStrip;
+
+        private const float ButtonGap = 6f;
+
+        private const float DoNextButtonWidth = 120f;
+
+        private const float DoNextMinWidth = 70f;
+
         private const float StripHeight = 30f;
 
         private const float ButtonHeight = 26f;
@@ -410,6 +446,15 @@ namespace WorkbenchGroups.Compat
             // Covers in-order groups too, where the round-robin divergence check never runs.
             NextOrder.ClearIfDisplacedFromHead(AnchorCompOf(SelTable));
 
+            // Before their body runs, so the rebuild lands in this same frame: they draw from a
+            // filtered copy of the list that only their own actions refresh, and our rotations and
+            // promotions are not their actions.
+            if (OwnBillListMoves.Version != seenMovesVersion)
+            {
+                seenMovesVersion = OwnBillListMoves.Version;
+                refreshFilterField?.SetValue(null, true);
+            }
+
             // Left-aligned and only as wide as it needs to be. Spanning the pane made a short
             // label float in the middle of a very wide button, which read as a header bar rather
             // than as something to press. Clamped so a long translation cannot grow it back under
@@ -419,6 +464,15 @@ namespace WorkbenchGroups.Compat
                 rect.y,
                 Mathf.Min(ButtonWidth, rect.width - TopRightControlsWidth),
                 ButtonHeight);
+
+            // The "do this next" button takes the rest of the same strip, up to the same right
+            // inset. Zero-width when a narrow tab leaves no room, which skips it rather than
+            // drawing a button too narrow to read.
+            float doNextX = reservedStrip.xMax + ButtonGap;
+            float doNextWidth = Mathf.Min(DoNextButtonWidth, rect.xMax - TopRightControlsWidth - doNextX);
+            doNextStrip = doNextWidth >= DoNextMinWidth
+                ? new Rect(doNextX, rect.y, doNextWidth, ButtonHeight)
+                : Rect.zero;
 
             rect.yMin += StripHeight;
         }
@@ -455,6 +509,128 @@ namespace WorkbenchGroups.Compat
             if (Mouse.IsOver(reservedStrip))
             {
                 TooltipHandler.TipRegion(reservedStrip, "WBG_CommandOrderingDesc".Translate());
+            }
+
+            if (doNextStrip != Rect.zero)
+            {
+                DrawDoNextButton(SelTable, anchorComp);
+            }
+        }
+
+        /// <summary>
+        /// The "do this next" control for Nice Bill Tab, acting on their selected bill.
+        ///
+        /// Not on the row, where vanilla's is. Their row has no free spot that stays put: the top
+        /// line runs leftwards from their delete button through a variable number of other mods'
+        /// buttons (Better Workbenches adds its own), the bottom line is their repeat controls, the
+        /// thumbnail is itself their pause button and would take the click first, and right-click
+        /// already opens their menu. A button that lands on someone else's button for some mod
+        /// lists and not others is worse than one a few pixels further from the row. The strip
+        /// above the list is ours, so the position is stable in every configuration.
+        ///
+        /// Selecting a row is one click in their tab, and it highlights the row, so "select, then
+        /// press" says which order is meant without guessing. None or several selected leaves the
+        /// button inert, with a tooltip saying why (<see cref="SelectedBillRule"/>).
+        /// </summary>
+        private static void DrawDoNextButton(Building_WorkTable bench, CompBillGroup anchorComp)
+        {
+            SelectedBillAction action = ActionFor(bench, anchorComp, out _);
+            bool actionable = SelectedBillRule.IsActionable(action);
+
+            string label = action == SelectedBillAction.Unmark
+                ? "WBG_NbtDoNextClearLabel".Translate()
+                : "WBG_NbtDoNextLabel".Translate();
+
+            // Drawn in the marker's red while the selected order is the marked one, the same
+            // cue vanilla's row button gives.
+            Color previous = GUI.color;
+            if (action == SelectedBillAction.Unmark)
+            {
+                GUI.color = Patch_Bill_DoInterface.NextOrderAccent;
+            }
+
+            if (Widgets.ButtonText(doNextStrip, label, active: actionable) && actionable)
+            {
+                SoundDefOf.Tick_High.PlayOneShotOnCamera();
+                PressDoNext(bench);
+            }
+
+            GUI.color = previous;
+
+            if (Mouse.IsOver(doNextStrip))
+            {
+                TooltipHandler.TipRegion(doNextStrip, TooltipFor(action));
+            }
+        }
+
+        /// <summary>
+        /// Presses the button: marks or unmarks the single selected bill through
+        /// <see cref="NextOrder.Toggle"/>, exactly as vanilla's row button does. Returns whether
+        /// anything happened. Public so a scenario can press it without replaying mouse input.
+        /// </summary>
+        public static bool PressDoNext(Building_WorkTable bench)
+        {
+            CompBillGroup anchorComp = bench != null && bench.Spawned ? AnchorCompOf(bench) : null;
+            SelectedBillAction action = ActionFor(bench, anchorComp, out Bill selected);
+            if (!SelectedBillRule.IsActionable(action))
+            {
+                return false;
+            }
+
+            NextOrder.Toggle(anchorComp, selected);
+            return true;
+        }
+
+        private static SelectedBillAction ActionFor(
+            Building_WorkTable bench, CompBillGroup anchorComp, out Bill single)
+        {
+            single = null;
+            int count = anchorComp == null ? 0 : CountSelectedBills(bench, out single);
+            return SelectedBillRule.Decide(count, NextOrder.IsNextOrder(anchorComp, single));
+        }
+
+        /// <summary>
+        /// Selected rows of theirs that stand for a bill in this bench's list. A selected
+        /// *recipe* (from their recipe browser) carries no bill and is not counted; nor is a
+        /// stale selection naming a bill from some other list.
+        /// </summary>
+        private static int CountSelectedBills(Building_WorkTable bench, out Bill single)
+        {
+            single = null;
+            List<Bill> bills = bench?.billStack?.Bills;
+            if (bills == null || selectionsField == null || selectedBillField == null
+                || !(selectionsField.GetValue(null) is IList selections))
+            {
+                return 0;
+            }
+
+            int count = 0;
+            foreach (object selection in selections)
+            {
+                if (selection != null
+                    && selectedBillField.GetValue(selection) is Bill bill
+                    && bills.Contains(bill))
+                {
+                    count++;
+                    single = bill;
+                }
+            }
+
+            return count;
+        }
+
+        private static string TooltipFor(SelectedBillAction action)
+        {
+            switch (action)
+            {
+                case SelectedBillAction.Mark:
+                    return "WBG_BillDoNextTip".Translate();
+                case SelectedBillAction.Unmark:
+                    return "WBG_BillDoNextClearTip".Translate();
+                case SelectedBillAction.MultipleSelected:
+                    return "WBG_NbtDoNextMultipleTip".Translate() + "\n\n" + "WBG_BillDoNextTip".Translate();
+                default:
+                    return "WBG_NbtDoNextNoSelectionTip".Translate() + "\n\n" + "WBG_BillDoNextTip".Translate();
             }
         }
 
