@@ -290,20 +290,50 @@ when it means *already being handled*. A green edge on the same row separates th
 Drawn on ungrouped benches too: the tracker counts every bill a pawn commits to, so there is no
 reason to withhold an indicator vanilla lacks entirely.
 
+The single green later split into a small scheme, because a shared list makes "being worked" too
+coarse — the useful question at a bench is whether it is being worked *here*. `BillAccentRule`
+(pure, tested) picks one accent per row: **green** for work at the bench whose tab is open (a pawn
+whose `CurJob.targetA` is this bench), **blue** for the bill that would start next (the first
+`ShouldDoNow`, i.e. the work giver's own answer), **faint green** — edge bar only, no fill — for
+work at another member, and **red on top of everything** where the host says nobody can do the
+work at all. Both bills tabs colour from `Patch_Bill_DoInterface.AccentFor`, so they cannot drift.
+
+The accent speaks through two surfaces: the left edge bar always, and the row's fill only for the
+two claims about this bench (`BillAccentRule.FillsRow`). In vanilla's tab the fill is our wash; in
+Nice Bill Tab's it is their row stripes, recoloured. Work elsewhere gets no fill in either — the
+first capture of Nice Bill Tab rows had it repainting their stripes the same green as work here,
+and the two rows could not be told apart.
+
 ### Which order was asked for next
 
-The marked order gets a red wash, a red outline around the whole row, a "P" badge, and its arrow
-button lit in the same red. It is drawn before the active-bill marker so the green left edge
-lands on top, because a marked order is routinely *also* the one someone is working and the two
-are answers to different questions — "what did I ask for next" and "what is happening now".
-Neither is allowed to hide the other. The outline rather than a second left edge is what makes
-that possible: the left edge was already spoken for.
+The marked order gets a red wash, a red outline around the whole row, a PRIORITY badge, and its
+arrow button lit in the same red. The accent's edge bar is drawn after the outline so it lands on
+top, because a marked order is routinely *also* the one someone is working, and usually also the
+blue "next up" row — it sits at the head of the list. The two answer different questions — "what
+did I ask for next" and "what is happening now" — so neither is allowed to hide the other.
+
+That is why the marker is **not an accent** and is not ranked in `BillAccentRule.Classify`: folding
+it into the precedence would make one of those facts disappear. Each keeps its own channel. The
+accent owns the left edge bar; the marker owns the outline and the badge. The one surface both
+wanted is the fill, and `BillAccentRule.WashFor` gives each row at most one: the marker's red when
+it is marked, otherwise the accent's. Two 13% washes stacked on the marked row came out violet
+(red over blue) — a colour that means neither — and the accent loses nothing by yielding, because
+its edge bar still says the same thing. Before/after on the marked, next-up row in vanilla's tab:
+median ΔE **10.1** over the row.
+
+In Nice Bill Tab's rows the marker shows as the outline plus the red arrow on the thumbnail's
+top-left corner, mirroring the chain on its bottom-left. Not the word: at Tiny, PRIORITY is wider
+than the thumbnail, and the first capture had its plate cutting "Cook" to "ok". There is **no
+button** there — their top line runs through a variable number of other mods' buttons, the
+thumbnail is their pause button and would take the click, and right-click opens their own menu —
+so a marker is set from vanilla's tab (their tab has a toggle for it) and cleared in theirs by
+dragging an order above it. Showing the state at least means a mark is never silently invisible.
 
 The red also lands on top of a third signal. The overshoot guard makes a fully-claimed bill
 report "would not start now" and vanilla paints any such bill pink, so a marked bill under work
 reads *blocked* from vanilla, *urgent* from us and *being handled* from the green edge, all on
-one row. That is a lot of colour on one line and is worth looking at in a frame rather than
-reasoning about; the `do_this_next` captures are where.
+one row. `do_this_next_worked.png` is that row: red outline and badge, green edge bar, vanilla's
+pink behind the red wash, and still legible.
 
 Group-only, like the chain icon and the ordering control. On a bench working alone vanilla's own
 reorder arrows already put an order first, so a second control doing the same thing would be
@@ -528,6 +558,8 @@ All probes pass:
 | `round_robin_rotation` | Group size 2; mode toggle takes; **3 bills visible from the second bench**, which is the field swap working; head bill cycles 0 → 1 → 2 → 0 across three starts. |
 | `overshoot_guard` | A `repeatCount = 1` bill goes from "would start" to "would not" the moment one pawn claims it. |
 | `nicebilltab_compat` | Runs with Nice Bill Tab active and is **graded on the frame, not the probes** — its one probe passes identically with the compatibility layer absent, because every difference is drawn. Against the same scenario on `main`: chain badges appear on all three rows, the in-progress bar appears on exactly the bill a pawn committed to, and the ordering button stops being drawn across their search box. |
+| `accent_states` | Every row state on one frame of vanilla's tab: marked + next up, worked here (twice), worked at the other bench. Probes read `AccentFor` itself, so the probes and the pixels answer from one function. The green "worked here" state is on screen for the first time — `WbgSimulateBillStart` gained `atBench`, which points the held job's `targetA` at a bench. Against the pre-`WashFor` build: **median ΔE 10.1 over the marked row** (violet mix → red), every other row's fill unchanged. |
+| `nicebilltab_accents` | The same states in Nice Bill Tab's tab, plus a bill that is both worked here and red. The red is **forced** (`WbgForceNiceBillTabStatus`): Nice Bill Tab 1.6 declares and colours `NoOneCanDo` but never returns it, so no player can see that state today; the capture shows what our layer does if they ever do. Against the previous build, measured over the pixels that changed (a whole-row median is 0 on these rows, because the stripes cover a quarter of the row and the rest is untouched): the red row loses our green edge bar (0.8% of the row, median ΔE 81.5), the elsewhere row gets its own stripes back (25% of the row, median ΔE 3.9 — visible at a glance, but a tint change, not a new element), and the marked row gains its outline and arrow (8.4%, median ΔE 82.0). |
 | `shared_save_integrity` | **Zero duplicate load-ID warnings** on save, and sharing intact afterwards. |
 | `do_this_next` | Marking promotes to the head; the marked order survives a job start that would otherwise rotate it away; marking a second order replaces the first; clicking the marked one again clears it; deleting the marked order leaves nothing marked. 13 probes. Two identically-framed captures of the second bench's tab, before and after marking — **median ΔE 11.4 over the marked row**, against 0.06% of the map changing at all. |
 | `reload_roundtrip_save` + `reload_roundtrip_load` | The save/reload round-trip, run as two game loads by `Tests/run_roundtrip.sh` (kept in `Tests/Scenarios/roundtrip/`, since it needs a fixture the rest of the suite does not) — phase A links, adds three bills, switches on round robin and saves; the script copies that save into the harness's `Fixtures/`; phase B boots with it and only probes. **After the load the two benches' `billStack` fields are the same object**, all three bills are visible from the second bench, and the group is still in round robin. |
@@ -558,10 +590,9 @@ green is a negative control — pointed at `minimal_colony.rws` instead, every p
 
 ### What is not yet verified
 
-- **The marked row stacked with the other two colour signals.** The captures show a marked order
-  on its own. What has not been photographed is a marked order that is *also* being worked, where
-  the red outline, the green active-bill edge and vanilla's pink "would not start now" all land on
-  one row. Reasoned about, not looked at.
+- **Red supersedes, as players would meet it.** Only seen with Nice Bill Tab's status forced by a
+  test step, because their 1.6 release never produces `NoOneCanDo` on its own. Vanilla's tab has no
+  equivalent state to defer to.
 - **The full craft loop.** The live scenarios test the decision made when a pawn commits
   to a bill, holding the job as a `Wait` rather than `DoBill`. Whether pawns then walk to
   the right bench and produce the right number of items is untested; it would make the

@@ -1,6 +1,7 @@
 using RimWorld;
 using RimWorldTestHarness.Mod.Probes;
 using Verse;
+using WorkbenchGroups.Core;
 
 namespace WorkbenchGroups.Probes
 {
@@ -305,6 +306,44 @@ namespace WorkbenchGroups.Probes
             }
 
             return marked.ShouldDoNow() ? 1f : 0f;
+        }
+    }
+
+    /// <summary>
+    /// Slot of the first queued bill whose row accent, as the bills tab would draw it for the
+    /// selected bench, is the given one. -1 when no bill has it.
+    ///
+    /// Reads <c>Patch_Bill_DoInterface.AccentFor</c>, the one function both bills tabs colour
+    /// from, so the probe and the pixels cannot disagree about which row is which. Depends on the
+    /// selection, like the tab does — run it after <c>WbgFocusBench</c>.
+    /// </summary>
+    public sealed class AccentSlotProbe : IProbe, IProbeMetadata
+    {
+        private readonly BillAccent accent;
+
+        public AccentSlotProbe(string name, BillAccent accent)
+        {
+            Name = name;
+            this.accent = accent;
+        }
+
+        public string Name { get; }
+
+        public string Description => $"Slot of the first queued bill drawn with the {accent} accent at the selected bench. -1 when none.";
+
+        public string Unit => "slot";
+
+        public float Read(Map map)
+        {
+            for (int i = 0; i < WbgTestState.Bills.Count; i++)
+            {
+                if (Patches.Patch_Bill_DoInterface.AccentFor(WbgTestState.Bills[i]) == accent)
+                {
+                    return i;
+                }
+            }
+
+            return -1f;
         }
     }
 }

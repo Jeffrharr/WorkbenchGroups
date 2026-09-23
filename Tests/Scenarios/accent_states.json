@@ -1,0 +1,224 @@
+{
+  "name": "accent_states",
+  "saveFile": "minimal_colony.rws",
+  "comment": "The vanilla-tab twin of nicebilltab_accents: every row state on one screen of vanilla's bills tab. Here the marked order is also next up, which is the co-occurrence BillAccentRule.WashFor exists for — one fill per row, the marker's red, with the accent's blue kept on the edge bar. No forced red: vanilla has no 'nobody can do this' row colour for us to defer to.",
+  "steps": [
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "14",
+        "height": "10"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "ElectricStove",
+        "layout": "cells",
+        "cells": "-3,0; 3,0",
+        "rot": "South"
+      }
+    },
+    {
+      "comment": "The fixture has one free colonist, and three bills have to be in flight at once — one pawn starting a second job would end its first and hand that claim back.",
+      "type": "SpawnPawn",
+      "args": {
+        "kind": "Colonist",
+        "faction": "player",
+        "count": "2",
+        "offset": "-2,-3"
+      }
+    },
+    {
+      "type": "WbgClaimBenches",
+      "args": {
+        "def": "ElectricStove"
+      }
+    },
+    {
+      "type": "WbgLinkBenches",
+      "args": {
+        "def": "ElectricStove",
+        "limit": "2",
+        "mode": "InOrder"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_group_size",
+        "expectedValue": "2",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "WbgAddBill",
+      "args": {
+        "recipe": "CookMealSimple",
+        "count": "5"
+      }
+    },
+    {
+      "type": "WbgAddBill",
+      "args": {
+        "recipe": "CookMealFine",
+        "count": "5"
+      }
+    },
+    {
+      "type": "WbgAddBill",
+      "args": {
+        "recipe": "CookMealSurvival",
+        "count": "5"
+      }
+    },
+    {
+      "type": "WbgAddBill",
+      "args": {
+        "recipe": "CookMealLavish",
+        "count": "3"
+      }
+    },
+    {
+      "comment": "Marked first, so it is at the head and also next up: the marker and the blue accent land on one row, which is the co-occurrence the wash rule exists for.",
+      "type": "WbgMarkNextOrder",
+      "args": {
+        "slot": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_head_bill_slot",
+        "expectedValue": "2",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "WbgFocusBench",
+      "args": {
+        "def": "ElectricStove",
+        "index": "1"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "12"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "comment": "First capture of a scenario carries the HUD regardless of hideUi, so this one is spent.",
+      "type": "Screenshot",
+      "args": {
+        "fileName": "accents_warmup.png",
+        "hideUi": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "10"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "accents_idle.png",
+        "hideUi": "false"
+      }
+    },
+    {
+      "comment": "atBench points the job's targetA at the bench, which is what IsWorkedAt reads. Bench 1 is the one whose tab is open, so this is 'worked here'.",
+      "type": "WbgSimulateBillStart",
+      "args": {
+        "slot": "0",
+        "atBench": "1",
+        "requireDistinct": "true"
+      }
+    },
+    {
+      "comment": "Bench 0 is the other member of the group: 'worked at another bench'.",
+      "type": "WbgSimulateBillStart",
+      "args": {
+        "slot": "1",
+        "atBench": "0",
+        "requireDistinct": "true"
+      }
+    },
+    {
+      "comment": "A second bill worked here, so two green rows show that the rule is per bill rather than per bench.",
+      "type": "WbgSimulateBillStart",
+      "args": {
+        "slot": "3",
+        "atBench": "1",
+        "requireDistinct": "true"
+      }
+    },
+    {
+      "type": "WbgFocusBench",
+      "args": {
+        "def": "ElectricStove",
+        "index": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_worked_here_slot",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_worked_elsewhere_slot",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_next_up_slot",
+        "expectedValue": "2",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_next_order_slot",
+        "expectedValue": "2",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "12"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "accents_states.png",
+        "hideUi": "false"
+      }
+    }
+  ]
+}
