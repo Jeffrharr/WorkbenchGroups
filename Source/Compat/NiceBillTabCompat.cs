@@ -263,9 +263,11 @@ namespace WorkbenchGroups.Compat
         {
             BillAccent accent = Patch_Bill_DoInterface.AccentFor(bill);
 
-            return accent == BillAccent.None || accent == BillAccent.Blocked
-                ? (Color?)null
-                : Patch_Bill_DoInterface.ColourOf(accent);
+            // The stripes are this host's equivalent of our wash in vanilla's tab, so the same
+            // rule decides who may repaint them.
+            return BillAccentRule.FillsRow(accent)
+                ? Patch_Bill_DoInterface.ColourOf(accent)
+                : (Color?)null;
         }
 
         /// <summary>
@@ -281,7 +283,8 @@ namespace WorkbenchGroups.Compat
         /// enum, and naming it in a signature here would need the hard assembly reference this
         /// whole class exists to avoid. Harmony injects only the parameters actually asked for.
         /// </summary>
-        private static void DrawBillPreviewPostfix(Rect recipePreviewRect, Bill bill, bool drawButtons)
+        private static void DrawBillPreviewPostfix(
+            Rect recipePreviewRect, Bill bill, bool drawButtons, object[] __args)
         {
             // Cleared unconditionally and first: this is the only thing that scopes the stripe
             // colour to one row, and leaving it set would tint whatever their tab drew next.
@@ -292,7 +295,11 @@ namespace WorkbenchGroups.Compat
                 return;
             }
 
-            Patch_Bill_DoInterface.DrawRowAnnotations(bill, recipePreviewRect, compact: true);
+            // Their status goes in too. Without it the stripes were left red but our green edge bar
+            // was still drawn on the same row, which the first live capture of this state showed:
+            // "red supersedes" held for their pixels and not for ours.
+            Patch_Bill_DoInterface.DrawRowAnnotations(
+                bill, recipePreviewRect, compact: true, blocked: IsBlocked(__args));
         }
 
         /// <summary>

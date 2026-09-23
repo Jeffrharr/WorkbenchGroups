@@ -36,6 +36,7 @@
 
   <WBG_NextOrderBadge>PRIORITY</WBG_NextOrderBadge>
   <WBG_BillDoNextTip>Do this next.\n\nMoves this order to the top of the group's shared list, whichever ordering the group is using, and keeps it marked.\n\nAn order set to "do X times" unmarks itself once its count runs out. An order set to "do forever" stays marked until you unmark it, because it never finishes.\n\nThis makes an order first in line, not guaranteed. Workers still skip any order that is suspended, paused, or has no ingredients they can reach, and take the next one down instead. If nothing seems to happen after marking an order, that is why.</WBG_BillDoNextTip>
+  <WBG_NextOrderMarkedCompactTip>Marked as priority, and sitting at the top of the group's shared list.\n\nIt unmarks itself if the order is deleted, if a "do X times" count runs out, or if you drag another order above it.</WBG_NextOrderMarkedCompactTip>
   <WBG_BillDoNextClearTip>Marked as priority, and sitting at the top of the group's shared list.\n\nClick to unmark it. It also unmarks itself if the order is deleted, if a "do X times" count runs out, or if you move another order above it. An order set to "do forever" stays marked until you unmark it.</WBG_BillDoNextClearTip>
 
   <WBG_SettingPreventOvershoot>Reserve counts when work starts</WBG_SettingPreventOvershoot>
