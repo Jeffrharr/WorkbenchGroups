@@ -43,8 +43,14 @@ namespace WorkbenchGroups.Patches
             // Only recount products when the answer can actually depend on it. Vanilla's counter
             // walks the map's things for filtered bills, so calling it unconditionally here would
             // be the expensive mistake this whole design is arranged to avoid.
+            //
+            // Read through the urgency sort's count cache rather than counting afresh. This
+            // postfix runs per bill per pawn per scan, and the first powered profile of a Balance
+            // group put its worst frame at 0.41 ms — a slow-path count on every call. The cache is
+            // at most a second old, and a job starting or ending on this bill (the only events
+            // that change the in-flight half of the sum below) drops its entry anyway.
             int produced = mode == RepeatModeCode.TargetCount
-                ? __instance.recipe.WorkerCounter.CountProducts(__instance)
+                ? CountProduced(__instance)
                 : 0;
 
             __result = OvershootPolicy.MayStartAnother(
@@ -55,6 +61,18 @@ namespace WorkbenchGroups.Patches
                 inFlight,
                 __instance.paused,
                 __instance.suspended);
+        }
+
+        private static int CountProduced(Bill_Production bill)
+        {
+            CompBillGroup anchorComp = NextOrder.AnchorCompOf(bill.billStack);
+            if (anchorComp != null
+                && UrgencySort.TryCount(anchorComp, bill, Find.TickManager.TicksGame, out int stock))
+            {
+                return stock;
+            }
+
+            return bill.recipe.WorkerCounter.CountProducts(bill);
         }
 
         /// <summary>
