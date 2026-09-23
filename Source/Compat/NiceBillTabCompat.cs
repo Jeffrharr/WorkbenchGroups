@@ -18,9 +18,11 @@ namespace WorkbenchGroups.Compat
     /// Nice Bill Tab prefixes <c>ITab_Bills.FillTab</c> and returns false, then draws a two-pane
     /// tab of its own. Nothing about the shared bill list itself is disturbed by that — it reads
     /// the <c>billStack</c> field, so the field swap this mod is built on is invisible to it, and
-    /// its "is anyone working this" test keys off <c>pawn.CurJob.bill</c>, which is already
-    /// group-correct. What breaks is everything that assumed *vanilla's* tab was doing the
-    /// drawing, and one rule that assumed vanilla's <c>AddBill</c> was doing the adding.
+    /// its "is anyone working this" test keys off <c>pawn.CurJob.bill</c>, which is correct for
+    /// "anyone" — but it animates the first such row regardless of bench, which in a group is
+    /// often the other bench's (see <see cref="RowMotionRule"/>). What breaks is that, everything
+    /// that assumed *vanilla's* tab was doing the drawing, and one rule that assumed vanilla's
+    /// <c>AddBill</c> was doing the adding.
     ///
     /// All of it is reached by name at runtime. This mod must not reference NiceBillTab.dll:
     /// that would make a soft dependency a hard one, and a player without the mod would get a
@@ -244,11 +246,63 @@ namespace WorkbenchGroups.Compat
         /// </summary>
         private const int NoOneCanDoStatus = 4;
 
+        /// <summary>
+        /// Where their <c>BillStatus</c> sits in <c>DrawBillPreview</c>'s arguments: read for
+        /// NoOneCanDo, written for row motion. Pinned by NiceBillTabApiTests.
+        /// </summary>
         private const int StatusArgIndex = 3;
 
         private static void DrawBillPreviewPrefix(Bill bill, bool drawButtons, object[] __args)
         {
-            stripeOverride = drawButtons ? StripeColorFor(bill, IsBlocked(__args)) : null;
+            stripeOverride = null;
+
+            // The drag ghost (drawButtons false) is left entirely as they drew it, colour and
+            // motion alike, so the two can't disagree about it.
+            if (!drawButtons || bill == null)
+            {
+                return;
+            }
+
+            bool blocked = IsBlocked(__args);
+            BillAccent accent = Patch_Bill_DoInterface.AccentFor(bill, blocked);
+            stripeOverride = StripeColorFor(bill, accent);
+            RestatusForMotion(bill, accent, __args);
+        }
+
+        /// <summary>
+        /// Moves their scrolling stripes onto the rows being worked at this bench, and off every
+        /// other row. <see cref="RowMotionRule"/> has the decision and why it is made through their
+        /// status rather than the scroll offset.
+        ///
+        /// Written back through <c>__args</c>: Harmony copies a prefix's changes to that array
+        /// into the original's arguments, and it is the only way to replace an argument whose type
+        /// is their enum without a hard reference to their assembly. <c>Enum.ToObject</c> on the
+        /// boxed value's own runtime type hands back a value of exactly their enum.
+        ///
+        /// Runs before <see cref="IsBlocked"/> is read again in the postfix, which is safe because
+        /// NoOneCanDo is never rewritten.
+        /// </summary>
+        private static void RestatusForMotion(Bill bill, BillAccent accent, object[] args)
+        {
+            object boxed = args != null && args.Length > StatusArgIndex ? args[StatusArgIndex] : null;
+            if (boxed == null)
+            {
+                return;
+            }
+
+            NbtBillStatus theirs = (NbtBillStatus)Convert.ToInt32(boxed);
+
+            // ShouldDoNow only for the one row their cache chose: it is the only input the rule
+            // reads it for, and it counts products on a target-count bill.
+            bool wouldStartNow = theirs == NbtBillStatus.Processed && bill.ShouldDoNow();
+
+            NbtBillStatus ours = RowMotionRule.StatusFor(
+                theirs, isProduction: bill is Bill_Production, accent, wouldStartNow);
+
+            if (ours != theirs)
+            {
+                args[StatusArgIndex] = Enum.ToObject(boxed.GetType(), (int)ours);
+            }
         }
 
         /// <summary>
@@ -293,9 +347,8 @@ namespace WorkbenchGroups.Compat
         /// <see cref="Patch_Bill_DoInterface.AccentFor"/>, so this tab and vanilla's cannot reach
         /// different conclusions about the same bill.
         /// </summary>
-        private static Color? StripeColorFor(Bill bill, bool blocked)
+        private static Color? StripeColorFor(Bill bill, BillAccent accent)
         {
-            BillAccent accent = Patch_Bill_DoInterface.AccentFor(bill, blocked);
             bool marked = NextOrder.IsNextOrder(NextOrder.AnchorCompOf(bill?.billStack), bill);
 
             switch (BillAccentRule.StripeFor(accent, marked))

@@ -400,6 +400,28 @@ Nice Bill Tab's it is their row stripes, recoloured. Work elsewhere gets no fill
 first capture of Nice Bill Tab rows had it repainting their stripes the same green as work here,
 and the two rows could not be told apart.
 
+**Motion is a third channel, and in Nice Bill Tab it belongs to "worked here".** Their tab scrolls
+the stripes of exactly one row: the first bill in the list that any free colonist on the map has
+as `CurJob.bill` (`CheckAnyOneDoWork`, refreshed on bench change and every 30 ticks). On an
+ungrouped bench that is the bill being made there. In a group the list is shared, so it is
+whichever worked bill sits highest — often the other bench's — while the bill being made at the
+open bench sits still. `RowMotionRule` (pure, tested) moves the scroll to every row that is
+`WorkedHere` and off every other row, using the same classification as the colours, so motion and
+hue can't disagree about a row. It works by handing their `DrawBillPreview` a different status
+(written back through Harmony's `__args`), not by zeroing the scroll offset. Their status also sets
+the stripe strength (0.4 moving, 0.2 still) and greys a Doned row's text, so a row we stop drops to
+exactly what their own `GetBillStatus` would have called it, and a row we start gains their full
+"being worked" look. Mech-gestation bills (`Bill_Autonomous`) animate from their own state and are
+left alone.
+
+Worked elsewhere does not move: it is already the weakest claim, speaking through the edge bar
+alone, and a scrolling row is the loudest thing on their tab. Next up does not move either, since
+nothing is happening to it yet. The grey `NoOneCanDo` row stays still even with a pawn on it,
+because scrolling grey would say "stuck" and "progressing" at once. **The marked order being made
+here does move, in red.** The marker owns the hue and the accent owns motion (and the edge bar), so
+red still means only "do this next" and the scroll adds "and it's being made here". Turning it
+green would take red off the one row it exists for; holding it still would hide the work.
+
 ### Which order was asked for next
 
 The marked order gets a red wash, a red outline around the whole row, a PRIORITY badge, and its
@@ -694,6 +716,7 @@ All probes pass:
 | `nicebilltab_compat` | Runs with Nice Bill Tab active and is **graded on the frame, not the probes** — its one probe passes identically with the compatibility layer absent, because every difference is drawn. Against the same scenario on `main`: chain badges appear on all three rows, the in-progress bar appears on exactly the bill a pawn committed to, and the ordering button stops being drawn across their search box. |
 | `accent_states` | Every row state on one frame of vanilla's tab: marked + next up, worked here (twice), worked at the other bench. Probes read `AccentFor` itself, so the probes and the pixels answer from one function. The green "worked here" state is on screen for the first time — `WbgSimulateBillStart` gained `atBench`, which points the held job's `targetA` at a bench. Against the pre-`WashFor` build: **median ΔE 10.1 over the marked row** (violet mix → red), every other row's fill unchanged. |
 | `nicebilltab_accents` | The same states in Nice Bill Tab's tab, plus a bill that is both worked here and "nobody can do this" (grey). That state is **forced** (`WbgForceNiceBillTabStatus`): Nice Bill Tab 1.6 declares and colours `NoOneCanDo` but never returns it, so no player can see that state today; the capture shows what our layer does if they ever do. Against the previous build, measured over the pixels that changed (a whole-row median is 0 on these rows, because the stripes cover a quarter of the row and the rest is untouched): the red row loses our green edge bar (0.8% of the row, median ΔE 81.5), the elsewhere row gets its own stripes back (25% of the row, median ΔE 3.9 — visible at a glance, but a tint change, not a new element), and the marked row gains its outline and arrow (8.4%, median ΔE 82.0). |
+| `nicebilltab_work_animation` | Which Nice Bill Tab row **scrolls**. Graded on bursts of six frames ~40 rendered frames apart, diffed frame to frame per row, since a still can't show motion. Phase 1 puts the other bench's bill above the one worked here: on `main` the elsewhere row scrolls (35% of its pixels change per step, median ΔE 13.2) and the worked-here row is still (0.0%); on the branch that swaps exactly (elsewhere 0.0%, worked here 36.7% at ΔE 14.6, in green). Phase 2 adds the marked order worked here (scrolls red on both builds, since it is also their chosen row) and a forced-`NoOneCanDo` row worked here (still and grey on both). Rows that should not move measure 0.0% on the branch. The elsewhere row in this scenario is a fully claimed 1x bill, so it rests as their Doned (greyed text): that is what their own `GetBillStatus` calls every other worked row that would not start again. |
 | `marker_foreign_reorder` | Where "do this next" meets foreign-reorder detection, graded on probes with a negative control. **A:** mark under round robin, start a job, unmark, switch to in-order — the authored order comes back (head slot 0), not the marker's promotion. **B:** in-order, Nice Bill Tab's tab open, a bare `Remove`/`Insert` puts another order above the marked one (`WbgMoveBillDirect`, standing in for their drag) — the mark clears. Against the build before the fix, both key probes fail (head stays 2; mark stays 2). |
 | `nicebilltab_do_next_button` | The "do this next" button above Nice Bill Tab's list. Selection goes through their own `SelectBill`, the press through the button's handler. Refuses with nothing selected and with two selected (the step asserts the press did nothing, and the probe that nothing is marked); marks the single selected order, which moves to the head; a second press unmarks it. Captures before and after the press: the button's face changes at median ΔE 32.1, the marked row at 30.3 as it moves up and turns red; 0.05% of the rest of the frame moves. |
 | `shared_save_integrity` | **Zero duplicate load-ID warnings** on save, and sharing intact afterwards. |
