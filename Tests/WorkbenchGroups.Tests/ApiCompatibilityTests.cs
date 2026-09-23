@@ -142,6 +142,64 @@ public class ApiCompatibilityTests
             "RecipeWorkerCounter.CountProducts no longer exists");
     }
 
+    // --- Stock-aware ordering (UrgencySort, Balance, "one of each first") ---
+
+    [Test]
+    public void RecipeWorkerCounter_CanCountProducts_IsStillVirtualAndTakesTheBill()
+    {
+        // The sort's gate for "has a stock to be short of". Virtual because butchery and stone
+        // cutting override it; if it stopped being virtual those overrides would be dead code and
+        // the gate would lie for exactly the recipes that count something other than products[0].
+        var method = MethodOf("Verse.RecipeWorkerCounter", "CanCountProducts", 1);
+
+        Assert.That(method, Is.Not.Null, "RecipeWorkerCounter.CanCountProducts no longer exists");
+        Assert.That(method!.IsVirtual, Is.True, "RecipeWorkerCounter.CanCountProducts is no longer virtual");
+        Assert.That(method.Parameters[0].ParameterType.FullName, Is.EqualTo("RimWorld.Bill_Production"));
+    }
+
+    [Test]
+    public void RecipeDef_products_And_ThingDefCountClass_count_StillExist()
+    {
+        // Units per iteration, for crediting in-flight work to the effective count.
+        Assert.That(GetType("Verse.RecipeDef")?.Fields.SingleOrDefault(f => f.Name == "products"),
+            Is.Not.Null, "RecipeDef.products no longer exists");
+        Assert.That(GetType("Verse.ThingDefCountClass")?.Fields.SingleOrDefault(f => f.Name == "count"),
+            Is.Not.Null, "ThingDefCountClass.count no longer exists");
+    }
+
+    [Test]
+    public void BillStack_Reorder_StillTakesBillAndOffset()
+    {
+        // Balance refuses reorders through a prefix on this method, and vanilla's row arrows are
+        // its only in-game caller. A second reorder path would need its own refusal, or the arrows
+        // this mod greys out would have a live twin somewhere.
+        var method = MethodOf("RimWorld.BillStack", "Reorder", 2);
+
+        Assert.That(method, Is.Not.Null, "BillStack.Reorder(Bill, int) no longer exists");
+        Assert.That(method!.Parameters[0].ParameterType.FullName, Is.EqualTo("RimWorld.Bill"));
+        Assert.That(method.Parameters[1].ParameterType.FullName, Is.EqualTo("System.Int32"));
+    }
+
+    [Test]
+    public void Bill_DoInterface_IsStillWhereTheReorderArrowsAreDrawn()
+    {
+        // The grey-out paints over the arrows at the row's left 24px, which is only right while
+        // Bill.DoInterface is the method calling Reorder. If vanilla moves the arrows elsewhere
+        // the paint lands on nothing and the arrows come back live.
+        var method = MethodOf("RimWorld.Bill", "DoInterface", 4);
+        bool callsReorder = method?.Body.Instructions.Any(i =>
+            i.Operand is MethodReference m && m.Name == "Reorder" && m.DeclaringType.Name == "BillStack") ?? false;
+
+        Assert.That(callsReorder, Is.True, "Bill.DoInterface no longer calls BillStack.Reorder");
+    }
+
+    [Test]
+    public void TickManager_TicksGame_StillExists()
+    {
+        Assert.That(GetType("Verse.TickManager")?.Properties.SingleOrDefault(p => p.Name == "TicksGame"),
+            Is.Not.Null, "TickManager.TicksGame no longer exists — the count cache has no clock");
+    }
+
     // --- Bill row UI (chain icons, active marker, "do this next") ---
 
     [Test]
