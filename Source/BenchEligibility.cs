@@ -188,7 +188,7 @@ namespace WorkbenchGroups
                 return false;
             }
 
-            return RecipeGate.AnyMakePlainProductionBill(ShapesOf(def));
+            return RecipeGate.AnyMakeShareableBill(ShapesOf(def));
         }
 
         /// <summary>

@@ -53,12 +53,15 @@ namespace WorkbenchGroups.Core
     /// return new Bill_Production(...);
     /// </code>
     ///
-    /// Only a plain <c>Bill_Production</c> can live in a shared stack (see
-    /// <c>BenchEligibility.IsShareableBill</c>), so this one predicate answers both questions the
-    /// mod has to ask — whether a bill may join a shared stack, and whether a bench has any
-    /// recipe for which grouping would do anything. Both are answered without naming a class, so
-    /// modded benches are admitted automatically and mech gestators and subcore encoders are
-    /// excluded automatically, because of what they make.
+    /// Two of those five can live in a shared stack — the plain <c>Bill_Production</c>, and
+    /// <c>Bill_ProductionWithUft</c> once the unfinished item is routed to the bench the pawn
+    /// walked to rather than the bench that owns the list (see <c>UnfinishedItemSharing</c>). The
+    /// other three cast the list's owner back to their own bench class and cannot be shared at
+    /// all. So one predicate over the shape answers both questions the mod has to ask — whether a
+    /// bill may join a shared stack, and whether a bench has any recipe for which grouping would
+    /// do anything. Both are answered without naming a class, so modded benches are admitted
+    /// automatically and mech gestators and subcore encoders are excluded automatically, because
+    /// of what they make.
     ///
     /// The four fields are pinned by a Cecil test, because the gate is now only as correct as this
     /// list is current: a fifth branch added to <c>MakeNewBill</c> in a future RimWorld would let
@@ -66,36 +69,50 @@ namespace WorkbenchGroups.Core
     /// </summary>
     public static class RecipeGate
     {
-        /// <summary>Whether a recipe would produce a plain <c>Bill_Production</c>.</summary>
-        public static bool MakesPlainProductionBill(RecipeShape shape)
+        /// <summary>
+        /// Whether a recipe would produce a bill that can live in a shared list — a plain
+        /// <c>Bill_Production</c> or a <c>Bill_ProductionWithUft</c>.
+        ///
+        /// The unfinished-thing marker is deliberately *not* tested here. It was, until the
+        /// unfinished item was made to follow the bench the pawn walked to; what disqualifies a
+        /// recipe is a bill type that reads the list's owner as its own bench, and only the
+        /// remaining three markers do that.
+        /// </summary>
+        public static bool MakesShareableBill(RecipeShape shape)
         {
-            return !shape.UsesUnfinishedThing
-                && !shape.MechResurrection
+            return !shape.MechResurrection
                 && shape.GestationCycles <= 0
                 && shape.FormingTicks <= 0;
         }
 
         /// <summary>
+        /// Whether a recipe would produce a plain <c>Bill_Production</c> — shareable, and with no
+        /// unfinished item to route. Reported by the eligibility census so a bench's verdict can
+        /// be read against what it actually makes.
+        /// </summary>
+        public static bool MakesPlainProductionBill(RecipeShape shape)
+        {
+            return MakesShareableBill(shape) && !shape.UsesUnfinishedThing;
+        }
+
+        /// <summary>
         /// Whether a bench has any recipe worth grouping it for.
         ///
-        /// Deliberately "at least one" rather than "all", and that choice is the whole design.
-        /// "All" is the tempting rule — it guarantees no unshareable bill can ever appear on a
-        /// grouped bench — but measured against the real def database it excludes every crafting
-        /// bench in the game. Apparel, weapons, armour and sculptures all use unfinished things,
-        /// so tailoring benches, smithies, the machining table, the fabrication bench, the
-        /// sculpting table and the crafting spot would all lose the gizmo. That trades one gap for
-        /// a far larger one.
+        /// Deliberately "at least one" rather than "all", because a bench can hold a mix: the
+        /// machining table makes components (plain), guns (unfinished item) and nothing else, and
+        /// a hypothetical bench mixing plain recipes with mech gestation would have to be admitted
+        /// on the strength of the half we can share.
         ///
-        /// So the recipe test moves to where the danger actually is: the bill.
-        /// <c>Patch_BillStack_AddBill</c> refuses a non-shareable bill entry into a shared stack,
-        /// which is the precise condition, and this rule only asks whether grouping the bench
-        /// could ever be useful. A bench with no plain recipe at all — a mech gestator, a subcore
-        /// encoder — gets no gizmo, because every bill it could hold would be refused.
+        /// So the recipe test also lands on the bill: <c>Patch_BillStack_AddBill</c> refuses a
+        /// non-shareable bill entry into a shared stack, which is the precise condition, and this
+        /// rule only asks whether grouping the bench could ever be useful. A bench with no
+        /// shareable recipe at all — a mech gestator, a subcore encoder — gets no gizmo, because
+        /// every bill it could hold would be refused.
         ///
         /// An empty or missing list is not groupable: nothing to share, and it keeps abstract and
         /// placeholder defs that happen to use the work table class out of the injector.
         /// </summary>
-        public static bool AnyMakePlainProductionBill(IList<RecipeShape> shapes)
+        public static bool AnyMakeShareableBill(IList<RecipeShape> shapes)
         {
             if (shapes == null)
             {
@@ -104,7 +121,7 @@ namespace WorkbenchGroups.Core
 
             foreach (RecipeShape shape in shapes)
             {
-                if (MakesPlainProductionBill(shape))
+                if (MakesShareableBill(shape))
                 {
                     return true;
                 }

@@ -88,7 +88,8 @@ public class RecipeUserIndexTests
             .Select(r => r.Shape).ToList();
 
         Assert.That(shapes, Has.Count.EqualTo(1));
-        Assert.That(RecipeGate.AnyMakePlainProductionBill(shapes), Is.False);
+        Assert.That(shapes[0].UsesUnfinishedThing, Is.True);
+        Assert.That(RecipeGate.MakesPlainProductionBill(shapes[0]), Is.False);
     }
 
     [Test]
