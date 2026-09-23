@@ -1,12 +1,15 @@
 using RimWorld;
 using Verse;
+using Verse.AI;
+using WorkbenchGroups.Core;
 
 namespace WorkbenchGroups
 {
     /// <summary>
     /// Makes an order that leaves an unfinished item behind — a gun, a shirt, a sculpture —
-    /// behave in a shared list the way a plain order already does: worked at the bench the pawn
-    /// walked to, not at the bench that happens to own the list.
+    /// work in a shared list: resumed at the group bench the item is parked at, or at the bench
+    /// the pawn walked to when that one is busy, never automatically at the bench that happens
+    /// to own the list.
     ///
     /// This is the piece that was missing when unfinished-item orders were refused outright.
     /// Everything on <c>WorkGiver_DoBill</c>'s normal path is anchored on <c>giver</c>, the bench
@@ -16,7 +19,7 @@ namespace WorkbenchGroups
     /// <c>giver</c> for the identical call. Shared, that difference sends a pawn standing at a
     /// free smithy trekking to the anchor, and points the haul-off at the wrong bench's cells.
     ///
-    /// So the fix is to answer that one read with the bench being scanned. Three consumers ask
+    /// So the fix is to answer that one read ourselves (see <see cref="ResumeGiver"/>). Three consumers ask
     /// where an unfinished item belongs, and all three are served from here:
     ///
     /// - <c>WorkGiver_DoBill.FinishUftJob</c>, via <see cref="ResumeGiver"/> — where to send the
@@ -62,20 +65,26 @@ namespace WorkbenchGroups
             RedirectInstalled = installed;
         }
 
-        public static void BeginScan(Building_WorkTable bench)
+        /// <summary>The pawn doing that scan, so the parked bench can be tested for this pawn.</summary>
+        private static Pawn scanningPawn;
+
+        public static void BeginScan(Building_WorkTable bench, Pawn pawn)
         {
             scanningBench = bench;
+            scanningPawn = pawn;
         }
 
         public static void EndScan()
         {
             scanningBench = null;
+            scanningPawn = null;
         }
 
         /// <summary>
-        /// The bench an unfinished-item job should be aimed at: the one being scanned when it
-        /// shares this bill's list and can make the recipe, and otherwise exactly what vanilla
-        /// would have read.
+        /// The bench an unfinished-item job should be aimed at. See
+        /// <see cref="UnfinishedItemPolicy.Choose"/> for the rule: the bench the item is parked
+        /// at when this pawn can use it, else the scanned bench when it shares the list, else
+        /// exactly what vanilla would have read.
         ///
         /// Called from IL in place of <c>bill.billStack.billGiver</c>, so it must answer for any
         /// bill, including ones with no group anywhere near them, and must never throw.
@@ -83,19 +92,65 @@ namespace WorkbenchGroups
         public static IBillGiver ResumeGiver(Bill bill)
         {
             IBillGiver owner = bill?.billStack?.billGiver;
-            Building_WorkTable bench = scanningBench;
+            Building_WorkTable scanned = scanningBench;
 
-            if (bench == null || ReferenceEquals(bench, owner))
+            // Outside a grouped scan (or for an ungrouped bench) there is nothing to decide.
+            if (scanned == null || !(owner is Building_WorkTable))
             {
                 return owner;
             }
 
-            if (!SharesListWith(bench, owner) || !CanMake(bench, bill.recipe))
+            bool scannedShares = SharesListWith(scanned, owner) && CanMake(scanned, bill.recipe);
+            Building_WorkTable parked = ParkedBenchOf(bill);
+            bool parkedUsable = parked != null && IsUsableFor(scanningPawn, parked, scanned) && CanMake(parked, bill.recipe);
+
+            switch (UnfinishedItemPolicy.Choose(parked != null, parkedUsable, scannedShares))
             {
-                return owner;
+                case ResumeBench.Parked:
+                    return parked;
+                case ResumeBench.Scanned:
+                    return scanned;
+                default:
+                    return owner;
+            }
+        }
+
+        /// <summary>The group bench the bill's bound item rests at, or null.</summary>
+        private static Building_WorkTable ParkedBenchOf(Bill bill)
+        {
+            UnfinishedThing uft = (bill as Bill_ProductionWithUft)?.BoundUft;
+            return uft == null ? null : ParkedGroupBench(uft);
+        }
+
+        /// <summary>
+        /// Whether <paramref name="pawn"/> could start work at <paramref name="bench"/> right now.
+        /// These are the same tests <c>WorkGiver_DoBill.JobOnThing</c> makes before it considers a
+        /// bench, plus reachability, which the scanner would otherwise have checked for us.
+        ///
+        /// The scanned bench has just passed those tests, so it short-circuits to true. Only a
+        /// parked bench other than the scanned one is ever tested, so this runs only when an
+        /// interrupted unfinished item is about to be resumed. That is rare enough that the
+        /// reservation and path lookups cost nothing measurable.
+        /// </summary>
+        private static bool IsUsableFor(Pawn pawn, Building_WorkTable bench, Building_WorkTable scanned)
+        {
+            if (ReferenceEquals(bench, scanned))
+            {
+                return true;
             }
 
-            return bench;
+            if (pawn == null || !bench.Spawned || bench.IsForbidden(pawn) || bench.IsBurning()
+                || !bench.CurrentlyUsableForBills() || !pawn.CanReserve(bench))
+            {
+                return false;
+            }
+
+            if (bench.def.hasInteractionCell && !pawn.CanReserveSittableOrSpot(bench.InteractionCell, bench))
+            {
+                return false;
+            }
+
+            return pawn.CanReach(bench, PathEndMode.InteractionCell, Danger.Some);
         }
 
         /// <summary>
