@@ -1,0 +1,44 @@
+{
+  "name": "marker_foreign_reorder",
+  "saveFile": "minimal_colony.rws",
+
+  "comment": "The two places the 'do this next' marker and foreign-reorder detection meet. Graded on probes: both halves fail against the build before 'Keep the do-this-next marker and foreign-reorder detection in step' (negative control), and pass after.",
+  "requiredMods": { "Andromeda.NiceBillTab": "3520130671" },
+
+  "steps": [
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "14", "height": "10" } },
+    { "type": "PlaceThings", "args": { "def": "ElectricStove", "layout": "cells", "cells": "-3,0; 3,0", "rot": "South" } },
+    { "type": "WbgClaimBenches", "args": { "def": "ElectricStove" } },
+    { "type": "WbgLinkBenches", "args": { "def": "ElectricStove", "limit": "2", "mode": "InOrder" } },
+
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealSimple", "count": "5" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealFine", "count": "5" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealSurvival", "count": "5" } },
+
+    {
+      "comment": "Part A: marking under round robin must not leak into the authored order. Switching on after the bills exist is load-bearing — it is what snapshots [0,1,2] as both the authored order and the divergence baseline.",
+      "type": "WbgSetOrdering", "args": { "mode": "RoundRobin" }
+    },
+    { "type": "WbgMarkNextOrder", "args": { "slot": "2" } },
+    { "type": "Probe", "args": { "probeName": "wbg_head_bill_slot", "expectedValue": "2", "tolerance": "0" } },
+    {
+      "comment": "A job start runs the divergence check. Before the fix the promotion was not in the baseline, so this read it as a foreign drag and wrote [2,0,1] into the authored order.",
+      "type": "WbgSimulateBillStart", "args": {}
+    },
+    { "type": "WbgMarkNextOrder", "args": { "slot": "-1" } },
+    { "type": "WbgSetOrdering", "args": { "mode": "InOrder" } },
+    { "type": "Probe", "args": { "probeName": "wbg_head_bill_slot", "expectedValue": "0", "tolerance": "0" } },
+
+    {
+      "comment": "Part B: a bare list move that puts another order above the marked one cancels the mark, in an in-order group, with Nice Bill Tab's tab open — the per-draw check is the only thing that can notice.",
+      "type": "WbgMarkNextOrder", "args": { "slot": "2" }
+    },
+    { "type": "WbgFocusBench", "args": { "def": "ElectricStove", "index": "1" } },
+    { "type": "Wait", "args": { "frames": "10" } },
+    { "type": "Probe", "args": { "probeName": "wbg_next_order_slot", "expectedValue": "2", "tolerance": "0" } },
+    { "type": "WbgMoveBillDirect", "args": { "slot": "0", "toIndex": "0" } },
+    { "type": "Wait", "args": { "frames": "10" } },
+    { "type": "Probe", "args": { "probeName": "wbg_next_order_slot", "expectedValue": "-1", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "wbg_head_bill_slot", "expectedValue": "0", "tolerance": "0" } }
+  ]
+}
