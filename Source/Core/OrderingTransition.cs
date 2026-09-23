@@ -38,24 +38,29 @@ namespace WorkbenchGroups.Core
         /// downgrade — is treated as rearranging. That keeps the snapshot it may be carrying
         /// instead of throwing it away, which is the recoverable side to fail on.
         /// </summary>
-        public static bool IsListMutating(OrderingMode mode)
+        /// <param name="mode">The group's ordering mode.</param>
+        /// <param name="oneEachFirst">The group's "one of each first" toggle. It re-sorts the list
+        /// in every mode, "in order" included — lifting short orders to the top is a
+        /// rearrangement like any other, and the authored order is what they drop back into once
+        /// they are no longer short, so it has to have been remembered.</param>
+        public static bool IsListMutating(OrderingMode mode, bool oneEachFirst)
         {
-            return mode != OrderingMode.InOrder;
+            return oneEachFirst || mode != OrderingMode.InOrder;
         }
 
         /// <summary>
-        /// What a switch from <paramref name="from"/> to <paramref name="to"/> does to the snapshot.
+        /// What a switch from a group state that did or did not rearrange the list, to one that
+        /// will or will not, does to the snapshot. Phrased over the two answers of
+        /// <see cref="IsListMutating"/> rather than over modes, because a mode switch and the
+        /// "one of each first" toggle are both switches of this kind.
         ///
         /// Moving between two rearranging modes deliberately does nothing. The list at that moment
         /// is already the *first* mode's output — a rotation, a sort — so snapshotting it would
         /// bake that computed order in as if the player had authored it, and the original order
         /// the first switch remembered would be lost for good.
         /// </summary>
-        public static SnapshotAction Plan(OrderingMode from, OrderingMode to)
+        public static SnapshotAction Plan(bool wasMutating, bool willMutate)
         {
-            bool wasMutating = IsListMutating(from);
-            bool willMutate = IsListMutating(to);
-
             if (wasMutating == willMutate)
             {
                 return SnapshotAction.None;

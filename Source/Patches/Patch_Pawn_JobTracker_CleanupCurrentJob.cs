@@ -29,6 +29,11 @@ namespace WorkbenchGroups.Patches
             if (__instance.curJob?.bill != null)
             {
                 InFlightTracker.Decrement(__instance.curJob.bill, ___pawn);
+
+                // A bill job ending is usually its product arriving. Dropping the cached count
+                // here is what stops the next scan treating the order as still short for up to a
+                // second after it has what it needed.
+                UrgencySort.NotifyBillActivity(__instance.curJob.bill);
             }
         }
     }

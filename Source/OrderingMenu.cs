@@ -23,7 +23,7 @@ namespace WorkbenchGroups
         {
             List<FloatMenuOption> options = new List<FloatMenuOption>();
 
-            foreach (OrderingMode mode in new[] { OrderingMode.InOrder, OrderingMode.RoundRobin })
+            foreach (OrderingMode mode in new[] { OrderingMode.InOrder, OrderingMode.RoundRobin, OrderingMode.Balance })
             {
                 OrderingMode chosen = mode;
                 string label = mode == current
@@ -36,14 +36,41 @@ namespace WorkbenchGroups
                 }));
             }
 
+            // The "one of each first" layer rides in the same menu as a toggle, after the modes.
+            // Not a separate button: both homes of this menu have room for one control, and the
+            // toggle composes with every mode, so it belongs with the choice of mode. Being in
+            // this shared menu is also what puts it in Nice Bill Tab's pane with no extra code.
+            bool floors = anchorComp?.OneEachFirst ?? false;
+            options.Add(new FloatMenuOption(
+                floors ? "WBG_OneEachFirstOn".Translate() : "WBG_OneEachFirstOff".Translate(),
+                delegate { RoundRobin.SetOneEachFirst(anchorComp, !floors); }));
+
             return options;
         }
 
         public static string LabelOf(OrderingMode mode)
         {
-            return mode == OrderingMode.RoundRobin
-                ? "WBG_ModeRoundRobin".Translate()
-                : "WBG_ModeInOrder".Translate();
+            switch (mode)
+            {
+                case OrderingMode.RoundRobin:
+                    return "WBG_ModeRoundRobin".Translate();
+                case OrderingMode.Balance:
+                    return "WBG_ModeBalance".Translate();
+                default:
+                    return "WBG_ModeInOrder".Translate();
+            }
+        }
+
+        /// <summary>
+        /// The mode, plus the "one of each first" layer when it is on. Every place that names the
+        /// group's state — both tabs' button and the inspect line — says it through here; the
+        /// inspect line once had its own ternary and told followers the wrong mode.
+        /// </summary>
+        public static string Describe(OrderingMode mode, bool oneEachFirst)
+        {
+            return oneEachFirst
+                ? "WBG_ModeWithOneEachFirst".Translate(LabelOf(mode))
+                : LabelOf(mode);
         }
 
         /// <summary>The mode a group is in, read off its anchor. Defaults for an absent comp.</summary>

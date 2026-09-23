@@ -32,6 +32,10 @@ namespace WorkbenchGroups.Patches
 
             InFlightTracker.Increment(newJob.bill, ___pawn);
             RoundRobin.NotifyBillStarted(newJob.bill);
+
+            // A new in-flight claim changes the urgency sort's counts, and the next pawn may scan
+            // this very tick — it must not see the order from before this start.
+            UrgencySort.NotifyBillActivity(newJob.bill);
         }
     }
 }

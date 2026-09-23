@@ -291,7 +291,19 @@ Under the parity rule in `CLAUDE.md`. For batched round robin:
 - **The batch count is drawn on their rows**, on the thumbnail-corner chain, but **it cannot be
   set there**. That thumbnail is their pause button, so a click must stay theirs; the tooltip says
   to use the standard tab. The same limit as the "do next" button, for the same reason.
-  Unverified on screen in their tab: whether the count fits on a 16px chain.
+  Checked on screen in `nicebilltab_ordering`.
+
+For stock-aware ordering (Balance, "one of each first"):
+
+- **The sort's moves are recorded as ours.** `UrgencySort` calls `RecordLastKnownOrder` after
+  applying a permutation, and runs `AbsorbExternalReorder` before sorting, because the sort's
+  tiebreak is the authored order. `stock_aware_ordering` and `nicebilltab_ordering` both move a
+  bill directly and check that the move survives the next scan.
+- **Their drag is refused under Balance** by a prefix on `HandleBillDrop` (pinned). A drag cannot
+  be replayed by the harness, so that refusal is verified only by the pin and by reading their
+  handler, not live.
+- **The mode and the toggle reach their pane** through the shared `OrderingMenu`, and their button
+  uses the same `Describe` label.
 
 ### 2f. Conflicting mods, generally
 
@@ -311,7 +323,9 @@ probes still pass — those two are the ones that rewrite the surfaces we depend
   from two different groups are selected at once.
 - **Profile at colony scale.** `Tests/Scenarios/hot_path_profile.json` now measures an unpaused
   window (six linked stoves, six colonists, ingredients on the floor) and the answer is that our
-  per-call costs are sub-microsecond and the total is 0.002% of a 60 fps budget. What it does
+  per-call costs are sub-microsecond and the total is 0.002% of a 60 fps budget. **That window
+  was unpowered** (its generator was never wired), so it measured guard clauses; the scene is now
+  powered and asserted, and the working-colony numbers are in `DESIGN.md` under the profile rows. What it does
   *not* establish is behaviour at scale: the interesting number is calls per frame, which was
   0.3, and it scales with pawns x benches. A 200-pawn colony with twenty benches is the run that
   would actually stress `Patch_WorkGiver_DoBill_JobOnThing`, and it needs a fixture this one
@@ -327,8 +341,9 @@ mechanism: "do this next", "at least N of each first" and "balance by shortfall"
 shared list by an urgency key and differ only in the key. **§1 "do this next" is now built**
 (see `DESIGN.md`, *"Do this next" promotes, it does not force*), and so is **§2 batched round
 robin** (*Batched round robin is a cadence, not an ordering*), together with the snapshot widening
-below. What remains is §3 stock-aware ordering and the group-level "one each first" toggle that
-rides on it.
+below, and **§3 stock-aware ordering** — Balance and the "one of each first" toggle (*Stock-aware
+ordering is one sort, run before each scan*). What remains open from the issue is a per-bill floor, which the comparator already takes but no UI
+sets.
 
 Kept as a numbered section here rather than left in the issue because §1 settled several
 questions the issue listed as open, and the next agent should not re-open them:
@@ -357,17 +372,15 @@ What §3 inherits, and what it changes:
   **§3 makes that one cheap** — it has to cache per-bill product counts anyway, so finishing the
   rule there is a few lines on top of the cache and should happen in the same change.
 - **The canonical-order snapshot is widened** (`Core/OrderingTransition`): it snapshots entering
-  any list-rearranging mode and restores on the way back to "in order", so `Balance` needs no edit
-  to `SetOrdering` beyond existing. What §3 still owes is its own re-promotion of the marked order
-  *after every sort*, since a re-sort is a rearrangement the restore path never sees — the
-  comparator's `priorityTier` 0 is where that falls out.
+  any list-rearranging state — including "in order" with the floor on — and restores on the way
+  back. The marked order is the sort's top tier, so every re-sort re-promotes it.
 - **§2's batch control is on the chain icon, not under it.** The count is a corner badge on the
   chain and the chain is the button. Nothing new was placed on a row's second line.
 
 The marked-and-worked row §1 left unphotographed is now captured (`marked_and_worked`): red
 outline, green edge and vanilla's dimmed "would not start now" all read distinctly on one row.
 
-**Nice Bill Tab parity for §2** is in §2e, *Issue #8's ordering features in Nice Bill Tab*.
+**Nice Bill Tab parity for §2 and §3** is in §2e, *Issue #8's ordering features in Nice Bill Tab*.
 
 **Read the layout note in `DESIGN.md` before drawing anything new on a bill row.** §2's proposed
 `(2x)` batch label at `(xMax - 100, y + 25)` is on top of `Bill_Production.DoConfigInterface`'s

@@ -110,6 +110,34 @@ namespace WorkbenchGroups
         private List<string> batchStartKeys;
         private List<int> batchStartValues;
 
+        /// <summary>
+        /// Anchor only: the group's "make one of each first" toggle — a floor of one on every
+        /// countable order, applied as a tier in front of whatever the ordering mode does.
+        ///
+        /// A flag and not an <see cref="OrderingMode"/> value because it is not an alternative to
+        /// the modes but a layer over them: "one of each, then my hand-picked order" and "one of
+        /// each, then balance" are both things a player means. Two enum values per mode would
+        /// have doubled the save format's surface for one bit.
+        /// </summary>
+        private bool oneEachFirst;
+
+        /// <summary>
+        /// Not saved: product counts the urgency sort has taken recently, per bill. See
+        /// <see cref="UrgencySort"/> for when an entry is trusted and when it is dropped.
+        /// Keyed by the live <c>Bill</c> because it never outlives the session that filled it.
+        /// </summary>
+        private readonly Dictionary<Bill, CachedCount> productCounts = new Dictionary<Bill, CachedCount>();
+
+        /// <summary>Not saved: tick of the last urgency sort, or -1 for "never".</summary>
+        private int lastSortTick = -1;
+
+        /// <summary>
+        /// Not saved: set when something the sort depends on changed in a way the clock cannot
+        /// see — a job started or ended on one of the group's bills, the mode or the toggle
+        /// changed. Starts true so the first scan after a load sorts.
+        /// </summary>
+        private bool sortDirty = true;
+
         /// <summary>Set only between the save prefix and its finalizer.</summary>
         private BillStack sharedStackDuringSave;
 
@@ -132,6 +160,30 @@ namespace WorkbenchGroups
         public List<string> CanonicalOrderIds => canonicalOrderIds;
 
         public List<string> LastKnownOrderIds => lastKnownOrderIds;
+
+        public bool OneEachFirst
+        {
+            get => oneEachFirst;
+            set => oneEachFirst = value;
+        }
+
+        /// <summary>Whether this group's state rearranges the list on its own.</summary>
+        public bool RearrangesList => Core.OrderingTransition.IsListMutating(ordering, oneEachFirst);
+
+        /// <summary>The count cache. Read and written only by <see cref="UrgencySort"/>.</summary>
+        public Dictionary<Bill, CachedCount> ProductCounts => productCounts;
+
+        public int LastSortTick
+        {
+            get => lastSortTick;
+            set => lastSortTick = value;
+        }
+
+        public bool SortDirty
+        {
+            get => sortDirty;
+            set => sortDirty = value;
+        }
 
         /// <summary>
         /// The marked order's load ID. Writing it drops the resolved-bill cache, so the next read
@@ -162,6 +214,7 @@ namespace WorkbenchGroups
             base.PostExposeData();
             Scribe_References.Look(ref anchor, "wbgAnchor");
             Scribe_Values.Look(ref ordering, "wbgOrdering", OrderingMode.InOrder);
+            Scribe_Values.Look(ref oneEachFirst, "wbgOneEachFirst", false);
             Scribe_Collections.Look(ref canonicalOrderIds, "wbgCanonicalOrder", LookMode.Value);
             Scribe_Collections.Look(ref lastKnownOrderIds, "wbgLastKnownOrder", LookMode.Value);
 
@@ -428,6 +481,8 @@ namespace WorkbenchGroups
             }
 
             ordering = previousAnchor.ordering;
+            oneEachFirst = previousAnchor.oneEachFirst;
+            sortDirty = true;
             canonicalOrderIds = new List<string>(previousAnchor.canonicalOrderIds);
             lastKnownOrderIds = new List<string>(previousAnchor.lastKnownOrderIds);
 
@@ -581,11 +636,8 @@ namespace WorkbenchGroups
             // ordering probe reads the anchor.
             CompBillGroup groupState = index.AnchorOf(bench)?.GetComp<CompBillGroup>() ?? this;
 
-            string mode = groupState.ordering == OrderingMode.RoundRobin
-                ? "WBG_ModeRoundRobin".Translate()
-                : "WBG_ModeInOrder".Translate();
-
-            return "WBG_InspectLinked".Translate(size, mode);
+            return "WBG_InspectLinked".Translate(
+                size, OrderingMenu.Describe(groupState.ordering, groupState.oneEachFirst));
         }
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
@@ -601,5 +653,12 @@ namespace WorkbenchGroups
             base.PostDrawExtraSelectionOverlays();
             BillGroupGizmos.DrawGroupOverlays(this);
         }
+    }
+
+    /// <summary>One cached product count and the tick it was taken.</summary>
+    public struct CachedCount
+    {
+        public int Stock;
+        public int StampedAt;
     }
 }

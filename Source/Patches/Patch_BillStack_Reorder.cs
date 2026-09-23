@@ -26,12 +26,51 @@ namespace WorkbenchGroups.Patches
     /// order sits at the head of the list, so a drag that puts something above it has already
     /// overridden it, and the honest response is to drop the marker rather than to promote the
     /// bill back and make the reorder arrows feel broken.
+    ///
+    /// <b>Under Balance a reorder is refused outright.</b> Balance re-sorts the list before every
+    /// bench scan, so an arrow click would be undone within a second — the arrows would work just
+    /// long enough to look broken. Rather than let them fight the mode, the mode owns the order
+    /// honestly: the arrows are drawn greyed (<see cref="Patch_Bill_DoInterface"/>) and the call
+    /// they make does nothing. Refused here rather than only in the drawing, so another mod's
+    /// reorder button is told the same thing as vanilla's.
     /// </summary>
     [HarmonyPatch(typeof(BillStack), nameof(BillStack.Reorder))]
     public static class Patch_BillStack_Reorder
     {
-        public static void Postfix(BillStack __instance)
+        public static bool Prefix(BillStack __instance)
         {
+            return !IsOwnedByBalance(__instance);
+        }
+
+        /// <summary>
+        /// Whether this list is a group's list and the group is in Balance mode. Public so the row
+        /// drawing greys the arrows by exactly the rule that refuses their click.
+        /// </summary>
+        public static bool IsOwnedByBalance(BillStack stack)
+        {
+            if (!(stack?.billGiver is Building_WorkTable anchor) || !anchor.Spawned)
+            {
+                return false;
+            }
+
+            BillGroupIndex index = BillGroupIndex.For(anchor.Map);
+            if (index == null || !index.IsGrouped(anchor))
+            {
+                return false;
+            }
+
+            return anchor.GetComp<CompBillGroup>()?.Ordering == OrderingMode.Balance;
+        }
+
+        public static void Postfix(BillStack __instance, bool __runOriginal)
+        {
+            // A refused reorder changed nothing, so there is no new arrangement to snapshot —
+            // and snapshotting here would bake Balance's computed order in as the player's own.
+            if (!__runOriginal)
+            {
+                return;
+            }
+
             if (!(__instance?.billGiver is Building_WorkTable anchor) || !anchor.Spawned)
             {
                 return;
@@ -55,7 +94,7 @@ namespace WorkbenchGroups.Patches
 
             // Any mode that rearranges the list keeps a snapshot, so any of them needs it
             // refreshed — not just round robin, which used to be the only one.
-            if (!OrderingTransition.IsListMutating(comp.Ordering))
+            if (!comp.RearrangesList)
             {
                 return;
             }

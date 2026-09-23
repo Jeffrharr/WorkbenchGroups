@@ -1,0 +1,57 @@
+{
+  "name": "nicebilltab_ordering",
+  "saveFile": "minimal_colony.rws",
+
+  "comment_requiredMods": "Issue #8's ordering features, seen through Nice Bill Tab's replacement tab (the parity rule in CLAUDE.md). Run with --mod NiceBillTabLinuxDrag, as nicebilltab_compat is.",
+  "requiredMods": { "Andromeda.NiceBillTab": "3520130671" },
+
+  "steps": [
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "14", "height": "10" } },
+    { "type": "PlaceThings", "args": { "def": "ElectricStove", "layout": "cells", "cells": "-3,0; 3,0", "rot": "South" } },
+    { "type": "WbgClaimBenches", "args": { "def": "ElectricStove" } },
+    {
+      "comment": "Linked in order, bills added, THEN round robin: switching in is what snapshots the authored order and records the baseline. The first run linked straight into round robin with an empty list, so the baseline was empty, the direct move below could not be told apart from an addition, and the absorb check passed vacuously; the capture gave it away, with Nice Bill Tab still drawing the pre-move order because nothing had bumped OwnBillListMoves.",
+      "type": "WbgLinkBenches", "args": { "def": "ElectricStove", "limit": "2" }
+    },
+    { "type": "Probe", "args": { "probeName": "wbg_group_size", "expectedValue": "2", "tolerance": "0" } },
+
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealSimple", "count": "5" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealFine", "count": "5" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealSurvival", "count": "5" } },
+    { "type": "WbgSetOrdering", "args": { "mode": "RoundRobin" } },
+
+    {
+      "comment": "A batch of three on the first order: the count should show on their compact row's thumbnail-corner chain, read-only.",
+      "type": "WbgSetBatch", "args": { "slot": "0", "size": "3" }
+    },
+
+    { "type": "WbgFocusBench", "args": { "def": "ElectricStove", "index": "1" } },
+    { "type": "LookAt", "args": { "zoom": "12" } },
+    { "type": "Wait", "args": { "frames": "20" } },
+    {
+      "comment": "First capture of a scenario carries the HUD regardless of hideUi, so this one is spent.",
+      "type": "Screenshot", "args": { "fileName": "nbt_order_warmup.png", "hideUi": "false" }
+    },
+    { "type": "Wait", "args": { "frames": "10" } },
+    { "type": "Screenshot", "args": { "fileName": "nbt_batch_count.png", "hideUi": "false" } },
+
+    {
+      "comment": "Balance plus one-each-first: the ordering button in their pane has to name both, through the same OrderingMenu.Describe the vanilla tab uses.",
+      "type": "WbgSetOrdering", "args": { "mode": "Balance" }
+    },
+    { "type": "WbgSetOneEachFirst", "args": { "on": "true" } },
+    { "type": "Probe", "args": { "probeName": "wbg_ordering_mode", "expectedValue": "12", "tolerance": "0" } },
+
+    {
+      "comment": "A direct list move (their drag's effect, which no patch sees) under Balance. None of these orders has a target and none is short, so every key ties and the authored order decides. The move is absorbed into that order before the sort, so it survives (312), and recording it bumps OwnBillListMoves so their cached list shows it. Without the absorb, the tie falls to the authored 123 and the move is undone.",
+      "type": "WbgMoveBillDirect", "args": { "slot": "2", "toIndex": "0" }
+    },
+    { "type": "WbgScanBench", "args": {} },
+    { "type": "Probe", "args": { "probeName": "wbg_bill_order", "expectedValue": "312", "tolerance": "0" } },
+
+    { "type": "WbgFocusBench", "args": { "def": "ElectricStove", "index": "1" } },
+    { "type": "LookAt", "args": { "zoom": "12" } },
+    { "type": "Wait", "args": { "frames": "20" } },
+    { "type": "Screenshot", "args": { "fileName": "nbt_balance_button.png", "hideUi": "false" } }
+  ]
+}

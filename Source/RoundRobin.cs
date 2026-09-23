@@ -97,18 +97,24 @@ namespace WorkbenchGroups
         /// <c>Patch_BillStack_Reorder</c> already makes, and for the same reason: the list they
         /// arranged is the list they were looking at.
         /// </summary>
-        private static void AbsorbExternalReorder(CompBillGroup anchorComp, BillStack stack)
+        /// <returns>True when a foreign reorder was found and absorbed.</returns>
+        /// <remarks>
+        /// Internal rather than private because the stock-aware sort in <see cref="UrgencySort"/>
+        /// has to run it too, before it sorts: once the sort lands on top of a foreign drag the two
+        /// are as indistinguishable as a rotation and a drag are here.
+        /// </remarks>
+        internal static bool AbsorbExternalReorder(CompBillGroup anchorComp, BillStack stack)
         {
             if (anchorComp == null || stack == null)
             {
-                return;
+                return false;
             }
 
             string[] current = LoadIdsOf(stack);
 
             if (!OrderDivergence.Diverged(anchorComp.LastKnownOrderIds.ToArray(), current))
             {
-                return;
+                return false;
             }
 
             anchorComp.CanonicalOrderIds.Clear();
@@ -120,6 +126,7 @@ namespace WorkbenchGroups
             // marker could keep its red row while sitting mid-list — and the next mode switch
             // would promote it back over the arrangement the player just made.
             NextOrder.ClearIfDisplacedFromHead(anchorComp);
+            return true;
         }
 
         /// <summary>
@@ -199,12 +206,34 @@ namespace WorkbenchGroups
                 return;
             }
 
+            ApplyGroupState(anchorComp, mode, anchorComp.OneEachFirst);
+        }
+
+        /// <summary>
+        /// Switches the group's "make one of each first" layer on or off. The same kind of switch
+        /// as a mode change as far as the authored order is concerned — it rearranges the list in
+        /// every mode, "in order" included — so it goes through the same snapshot rule.
+        /// </summary>
+        public static void SetOneEachFirst(CompBillGroup anchorComp, bool on)
+        {
+            if (anchorComp == null || anchorComp.OneEachFirst == on)
+            {
+                return;
+            }
+
+            ApplyGroupState(anchorComp, anchorComp.Ordering, on);
+        }
+
+        private static void ApplyGroupState(CompBillGroup anchorComp, OrderingMode mode, bool oneEachFirst)
+        {
             BillStack stack = anchorComp.Bench?.billStack;
 
-            // Keyed on whether each mode *rearranges the list*, not on which mode it is, so a
-            // second rearranging mode snapshots on the way in and restores on the way out without
-            // this method learning its name. See OrderingTransition for the rule.
-            SnapshotAction action = OrderingTransition.Plan(anchorComp.Ordering, mode);
+            // Keyed on whether each state *rearranges the list*, not on which mode it is, so a new
+            // rearranging mode snapshots on the way in and restores on the way out without this
+            // method learning its name. See OrderingTransition for the rule.
+            SnapshotAction action = OrderingTransition.Plan(
+                anchorComp.RearrangesList,
+                OrderingTransition.IsListMutating(mode, oneEachFirst));
 
             if (action == SnapshotAction.Snapshot)
             {
@@ -239,6 +268,11 @@ namespace WorkbenchGroups
             }
 
             anchorComp.Ordering = mode;
+            anchorComp.OneEachFirst = oneEachFirst;
+
+            // A stock-aware state sorts before the next bench scan rather than waiting for its
+            // clock; a state that does not sort simply ignores the flag.
+            anchorComp.SortDirty = true;
         }
 
         private static void RestoreAuthoredOrder(BillStack stack, List<string> canonicalIds)
