@@ -291,13 +291,19 @@ the main checkout, does not find it, and draws `BadTex` — a magenta X that loo
 wrong ContentFinder path. Install the whole versioned folder instead:
 `--install <worktree>/1.6:<main-checkout>/1.6`.
 
-**Unfinished-item orders (issue #11) and Nice Bill Tab.** Their paste button
-(`TabBillsDrawer.InsertBill`) skips `BillStack.AddBill`. The reflective guard on it (PR #13)
-calls `Patch_BillStack_AddBill.AllowInto`, which asks `BenchEligibility.IsShareableBill`. So a
-pasted unfinished-item order is admitted or refused by the same rule, including the fail-closed
-`RedirectInstalled` check, and nothing extra is needed. When the two branches meet, reword that
-guard's log text: it still says a pasted unfinished-item order "would strand on the anchor bench".
-The redirect, haul guard and `BoundWorkTable` fixes never touch a bills tab.
+**Unfinished-item orders (issue #11) and Nice Bill Tab: parity checked, no gap.**
+- *Adding a bill.* Their paste button (`TabBillsDrawer.InsertBill`) skips `BillStack.AddBill`,
+  but its guard calls `Patch_BillStack_AddBill.AllowInto`, which asks
+  `BenchEligibility.IsShareableBill`. A pasted unfinished-item order is admitted or refused by the
+  same rule as in the vanilla tab, including the fail-closed `RedirectInstalled` check.
+- *Row state for an order resumed at a member.* Both tabs colour rows through
+  `Patch_Bill_DoInterface.AccentFor`, and that reads the worker's `job.targetA`. The redirect
+  makes `targetA` the member, so "worked here" and "worked elsewhere" come out right in both tabs
+  with no tab-specific code.
+- *Nothing else to match.* The redirect, the haul guard and `BoundWorkTable` act on jobs, hauling
+  and the map's selection line. None of them draws in, reads from or changes a bills tab.
+  Vanilla's "bound to worker" status line on these rows is drawn by each tab from vanilla data,
+  and we do not touch it.
 
 ### 2f. Conflicting mods, generally
 
