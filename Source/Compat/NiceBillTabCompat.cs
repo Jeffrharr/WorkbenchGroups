@@ -491,7 +491,8 @@ namespace WorkbenchGroups.Compat
             CompBillGroup anchorComp = AnchorCompOf(SelTable);
             OrderingMode current = OrderingMenu.CurrentOf(anchorComp);
 
-            if (Widgets.ButtonText(reservedStrip, "WBG_CommandOrdering".Translate(OrderingMenu.LabelOf(current))))
+            string described = OrderingMenu.Describe(current, anchorComp?.OneEachFirst ?? false);
+            if (Widgets.ButtonText(reservedStrip, "WBG_CommandOrdering".Translate(described)))
             {
                 Find.WindowStack.Add(new FloatMenu(OrderingMenu.OptionsFor(anchorComp, current)));
             }

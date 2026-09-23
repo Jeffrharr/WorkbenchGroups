@@ -199,12 +199,34 @@ namespace WorkbenchGroups
                 return;
             }
 
+            ApplyGroupState(anchorComp, mode, anchorComp.OneEachFirst);
+        }
+
+        /// <summary>
+        /// Switches the group's "make one of each first" layer on or off. The same kind of switch
+        /// as a mode change as far as the authored order is concerned — it rearranges the list in
+        /// every mode, "in order" included — so it goes through the same snapshot rule.
+        /// </summary>
+        public static void SetOneEachFirst(CompBillGroup anchorComp, bool on)
+        {
+            if (anchorComp == null || anchorComp.OneEachFirst == on)
+            {
+                return;
+            }
+
+            ApplyGroupState(anchorComp, anchorComp.Ordering, on);
+        }
+
+        private static void ApplyGroupState(CompBillGroup anchorComp, OrderingMode mode, bool oneEachFirst)
+        {
             BillStack stack = anchorComp.Bench?.billStack;
 
-            // Keyed on whether each mode *rearranges the list*, not on which mode it is, so a
-            // second rearranging mode snapshots on the way in and restores on the way out without
-            // this method learning its name. See OrderingTransition for the rule.
-            SnapshotAction action = OrderingTransition.Plan(anchorComp.Ordering, mode);
+            // Keyed on whether each state *rearranges the list*, not on which mode it is, so a new
+            // rearranging mode snapshots on the way in and restores on the way out without this
+            // method learning its name. See OrderingTransition for the rule.
+            SnapshotAction action = OrderingTransition.Plan(
+                anchorComp.RearrangesList,
+                OrderingTransition.IsListMutating(mode, oneEachFirst));
 
             if (action == SnapshotAction.Snapshot)
             {
@@ -239,6 +261,11 @@ namespace WorkbenchGroups
             }
 
             anchorComp.Ordering = mode;
+            anchorComp.OneEachFirst = oneEachFirst;
+
+            // A stock-aware state sorts before the next bench scan rather than waiting for its
+            // clock; a state that does not sort simply ignores the flag.
+            anchorComp.SortDirty = true;
         }
 
         private static void RestoreAuthoredOrder(BillStack stack, List<string> canonicalIds)

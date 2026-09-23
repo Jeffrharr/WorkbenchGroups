@@ -89,7 +89,8 @@ namespace WorkbenchGroups.Patches
             CompBillGroup anchorComp = index.AnchorOf(bench)?.GetComp<CompBillGroup>();
             OrderingMode current = OrderingMenu.CurrentOf(anchorComp);
 
-            if (Widgets.ButtonText(ButtonRect, "WBG_CommandOrdering".Translate(OrderingMenu.LabelOf(current))))
+            string described = OrderingMenu.Describe(current, anchorComp?.OneEachFirst ?? false);
+            if (Widgets.ButtonText(ButtonRect, "WBG_CommandOrdering".Translate(described)))
             {
                 Find.WindowStack.Add(new FloatMenu(OrderingMenu.OptionsFor(anchorComp, current)));
             }

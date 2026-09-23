@@ -55,7 +55,7 @@ namespace WorkbenchGroups.Patches
 
             // Any mode that rearranges the list keeps a snapshot, so any of them needs it
             // refreshed — not just round robin, which used to be the only one.
-            if (!OrderingTransition.IsListMutating(comp.Ordering))
+            if (!comp.RearrangesList)
             {
                 return;
             }

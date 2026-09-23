@@ -11,5 +11,13 @@ namespace WorkbenchGroups
 
         /// <summary>One iteration of a bill, then the next, wrapping around.</summary>
         RoundRobin = 1,
+
+        /// <summary>
+        /// Stock-aware: "do until you have X" orders are worked emptiest-first by the fraction of
+        /// their target in stock, re-sorted before each bench scan. Appended at 2 because this
+        /// enum is saved by value — inserting it anywhere else would silently turn every saved
+        /// round-robin group into something else.
+        /// </summary>
+        Balance = 2,
     }
 }
