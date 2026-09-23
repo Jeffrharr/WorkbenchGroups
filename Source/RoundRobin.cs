@@ -107,6 +107,13 @@ namespace WorkbenchGroups
 
             anchorComp.CanonicalOrderIds.Clear();
             anchorComp.CanonicalOrderIds.AddRange(current);
+
+            // The foreign reorder is also the only notice the "do this next" marker gets of it.
+            // Vanilla's arrows reach Patch_BillStack_Reorder, which drops a marker the player has
+            // dragged something above; a direct list mutation reaches nothing, so without this a
+            // marker could keep its red row while sitting mid-list — and the next mode switch
+            // would promote it back over the arrangement the player just made.
+            NextOrder.ClearIfDisplacedFromHead(anchorComp);
         }
 
         /// <summary>
@@ -114,7 +121,13 @@ namespace WorkbenchGroups
         /// against. Every path that deliberately changes the order has to call this, or the change
         /// gets attributed to another mod on the next check.
         /// </summary>
-        private static void RecordLastKnownOrder(CompBillGroup anchorComp, BillStack stack)
+        /// <remarks>
+        /// Public because this class is not the only thing that moves bills on purpose: marking an
+        /// order "do this next" promotes it to the head, and if that move were left out of the
+        /// baseline the next check would read it as another mod's reorder and bake the marker's
+        /// position into the player's authored order.
+        /// </remarks>
+        public static void RecordLastKnownOrder(CompBillGroup anchorComp, BillStack stack)
         {
             if (anchorComp == null || stack == null)
             {

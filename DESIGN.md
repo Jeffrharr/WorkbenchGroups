@@ -395,10 +395,18 @@ reorder from an add or a delete — both are routine between checks — so both 
 onto the bills they have in common and those projections compared. `CompBillGroup.lastKnownOrderIds`
 is the baseline, scribed because a drag can be separated from the next check by a save.
 
-The same bypass means a drag under that mod does not cancel a "do this next" marker the way
-vanilla's own reorder does, so the marked row can stay red while sitting somewhere other than the
-head. Cosmetic rather than corrupting, and it self-corrects the next time anything goes through
-`Reorder`.
+The same bypass hides drags from the "do this next" marker, whose rule is that a drag putting
+something above the marked order cancels the mark. Vanilla's arrows reach that rule through
+`Patch_BillStack_Reorder`; a direct mutation reaches nothing. Two cheap checks close it without
+patching their handler either: `AbsorbExternalReorder` drops a displaced marker whenever it detects
+a foreign reorder (round robin, any mod), and the Nice Bill Tab left-pane prefix — already running
+per frame for the ordering strip — asks the same head-of-list question once per draw, which covers
+in-order groups where the divergence check never runs.
+
+The two mechanisms also have to agree about who moved what. Marking promotes the bill with a bare
+list move of our own, so `NextOrder.PromoteToHead` records the new baseline; without that, the next
+round-robin job start would read the promotion as a foreign drag and write the marker's position
+into the player's authored order, where un-marking could never undo it.
 
 **Its clipboard paste bypasses `BillStack.AddBill`.** `TabBillsDrawer.InsertBill` assigns
 `bill.billStack` and calls `Bills.Insert` directly. Our unfinished-thing gate is a prefix on
@@ -554,9 +562,6 @@ green is a negative control — pointed at `minimal_colony.rws` instead, every p
   on its own. What has not been photographed is a marked order that is *also* being worked, where
   the red outline, the green active-bill edge and vanilla's pink "would not start now" all land on
   one row. Reasoned about, not looked at.
-- **"Do this next" under a non-vanilla reorder.** Nice Bill Tab's drag mutates `BillStack.Bills`
-  directly rather than going through `BillStack.Reorder`, so the "a drag cancels the marker" rule
-  will not fire there. Folded into the Nice Bill Tab work in `TODO.md` §2e.
 - **The full craft loop.** The live scenarios test the decision made when a pawn commits
   to a bill, holding the job as a `Wait` rather than `DoBill`. Whether pawns then walk to
   the right bench and produce the right number of items is untested; it would make the

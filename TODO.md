@@ -262,6 +262,8 @@ panel and never asked what their panel does instead of calling ours:
   directly is covered.
 - `TabBillsDrawer.InsertBill` pastes with a bare `Bills.Insert`, so the unfinished-thing gate on
   `AddBill` was bypassed and a gun bill could enter a shared stack.
+- The same drag never reached the "do this next" rule that a drag above the marked order cancels
+  it. Covered by the divergence check and a per-draw head-of-list check in their left pane.
 
 The lesson generalises past this mod: **"which of our patches might draw in the wrong place" is a
 much smaller question than "which of our chokepoints does this mod route around".** The next

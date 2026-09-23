@@ -222,6 +222,12 @@ namespace WorkbenchGroups
             Bill moved = bills[removeAt];
             bills.RemoveAt(removeAt);
             bills.Insert(insertAt, moved);
+
+            // Our own move, so it goes into the baseline that OrderDivergence compares against.
+            // Otherwise the next round-robin job start would see the list changed behind its back,
+            // take the promotion for a foreign drag and write it into the authored order — so
+            // un-marking later would leave the bill at the head for good.
+            RoundRobin.RecordLastKnownOrder(anchorComp, anchorComp.Bench.billStack);
         }
 
         /// <summary>The comp holding a shared list's group state, given the list.</summary>
