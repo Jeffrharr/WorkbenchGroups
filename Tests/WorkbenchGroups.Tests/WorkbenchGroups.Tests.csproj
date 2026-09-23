@@ -38,6 +38,7 @@
     <Compile Include="../../Source/Core/RecipeUserIndex.cs" Link="Core/RecipeUserIndex.cs" />
     <Compile Include="../../Source/Core/ClassExclusionList.cs" Link="Core/ClassExclusionList.cs" />
     <Compile Include="../../Source/Core/BillLinkage.cs" Link="Core/BillLinkage.cs" />
+    <Compile Include="../../Source/Core/IlPairRewrite.cs" Link="Core/IlPairRewrite.cs" />
   </ItemGroup>
 
 </Project>
