@@ -121,6 +121,62 @@ public class NiceBillTabApiTests
             "BillStatus.NoOneCanDo moved; update NiceBillTabCompat.NoOneCanDoStatus");
     }
 
+    [TestCase("Processed", 0)]
+    [TestCase("Pending", 1)]
+    [TestCase("Paused", 2)]
+    [TestCase("Doned", 3)]
+    [TestCase("NoOneCanDo", 4)]
+    public void BillStatus_ordinals_still_match_our_mirror(string member, int ordinal)
+    {
+        // Core.NbtBillStatus mirrors their enum by ordinal, and the row-motion rewrite hands a value
+        // back into their DrawBillPreview through Enum.ToObject. A shifted member would make "stop
+        // this row moving" land as some other state of theirs, drawn without complaint.
+        var status = _module.GetTypes()
+            .SingleOrDefault(t => t.FullName == "NiceBillTab.TabBillsDrawer/BillStatus");
+
+        Assert.That(status, Is.Not.Null, "NiceBillTab.BillStatus no longer exists");
+
+        var field = status!.Fields.SingleOrDefault(f => f.Name == member);
+
+        Assert.That(field, Is.Not.Null, $"BillStatus.{member} no longer exists");
+        Assert.That(field!.Constant, Is.EqualTo(ordinal), $"BillStatus.{member} moved; update Core.NbtBillStatus");
+        Assert.That(
+            (int)Enum.Parse(typeof(WorkbenchGroups.Core.NbtBillStatus), member),
+            Is.EqualTo(ordinal),
+            $"Core.NbtBillStatus.{member} no longer mirrors their ordinal");
+    }
+
+    [Test]
+    public void DrawBillPreview_still_takes_the_status_as_its_fourth_argument()
+    {
+        // The row-motion rewrite writes their status back through __args[3], the same slot the
+        // NoOneCanDo check reads. Position rather than name, because the value is their enum.
+        var method = MethodOf("DrawBillPreview");
+
+        Assert.That(method, Is.Not.Null, "TabBillsDrawer.DrawBillPreview no longer exists");
+        Assert.That(method!.Parameters.Count, Is.GreaterThan(3));
+        Assert.That(
+            method.Parameters[3].ParameterType.FullName,
+            Is.EqualTo("NiceBillTab.TabBillsDrawer/BillStatus"),
+            "DrawBillPreview's status moved; update NiceBillTabCompat.StatusArgIndex");
+    }
+
+    [Test]
+    public void Their_status_still_drives_the_scroll()
+    {
+        // The whole motion fix rests on this: DrawStatusedBillBackground reads Time.time for
+        // exactly one status, so handing DrawBillPreview a different status is what moves or stills
+        // a row. If they start animating from something else (their own cached bill, say), the
+        // rewrite silently stops having any effect.
+        var method = MethodOf("DrawStatusedBillBackground");
+
+        Assert.That(method, Is.Not.Null, "TabBillsDrawer.DrawStatusedBillBackground no longer exists");
+        Assert.That(
+            method!.Body.Instructions.Count(i => i.Operand is MethodReference m && m.Name == "get_time"),
+            Is.EqualTo(1),
+            "Their stripe scroll no longer reads Time.time exactly once; re-check how rows are animated");
+    }
+
     [Test]
     public void The_drag_handler_still_bypasses_BillStack_Reorder()
     {

@@ -32,6 +32,7 @@
     <Compile Include="../../Source/Core/CanonicalOrder.cs" Link="Core/CanonicalOrder.cs" />
     <Compile Include="../../Source/Core/OrderDivergence.cs" Link="Core/OrderDivergence.cs" />
     <Compile Include="../../Source/Core/BillAccent.cs" Link="Core/BillAccent.cs" />
+    <Compile Include="../../Source/Core/RowMotion.cs" Link="Core/RowMotion.cs" />
     <Compile Include="../../Source/Core/SelectedBillAction.cs" Link="Core/SelectedBillAction.cs" />
     <Compile Include="../../Source/Core/GroupMembership.cs" Link="Core/GroupMembership.cs" />
     <Compile Include="../../Source/Core/RecipeGate.cs" Link="Core/RecipeGate.cs" />
