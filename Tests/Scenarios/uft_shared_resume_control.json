@@ -124,8 +124,10 @@
       "type": "WbgMakeStockpile",
       "args": {
         "from": "-2,4",
-        "to": "2,6"
-      }
+        "to": "2,6",
+        "allow": "Steel, UnfinishedApparel"
+      },
+      "comment": "Accepts only the control steel and the unfinished item, so the hauler's window is spent on the two things under test rather than the fixture colony's junk. Accepting the unfinished item is what makes 'left alone' a finding: the stockpile would take it."
     },
     {
       "type": "SpawnPawn",
@@ -292,6 +294,10 @@
         "ticks": "5000"
       },
       "comment": "Long enough for a randomly generated hauler to finish carrying the leftover cloth as well as the control steel; 2500 ticks passed on one pawn and not on the next."
+    },
+    {
+      "type": "WbgLogCrafter",
+      "args": {}
     },
     {
       "type": "Probe",

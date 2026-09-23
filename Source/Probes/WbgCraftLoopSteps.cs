@@ -164,7 +164,7 @@ namespace WorkbenchGroups.Probes
     }
 
     /// <summary>
-    /// A stockpile that accepts everything, over a rectangle. The hauler needs somewhere better
+    /// A stockpile over a rectangle, accepting everything or only the defs named in <c>allow</c>. The hauler needs somewhere better
     /// to take things, or "it left the item alone" would only mean it had nowhere to put it.
     ///
     /// Loose items already in the rectangle are destroyed first. The fixture scatters forbidden
@@ -191,7 +191,27 @@ namespace WorkbenchGroups.Probes
 
             Zone_Stockpile zone = new Zone_Stockpile(StorageSettingsPreset.DefaultStockpile, ctx.Map.zoneManager);
             ctx.Map.zoneManager.RegisterZone(zone);
-            zone.settings.filter.SetAllowAll(null);
+            // "allow" narrows the stockpile to named defs. The fixture's whole colony is strewn
+            // with loose items, and an accept-everything stockpile had the hauler spending the
+            // entire window carrying the colony's junk before it reached the control stack.
+            if (args.TryGetValue("allow", out string allow))
+            {
+                zone.settings.filter.SetDisallowAll();
+                foreach (string name in allow.Split(',').Select(n => n.Trim()).Where(n => n.Length > 0))
+                {
+                    ThingDef def = DefDatabase<ThingDef>.GetNamedSilentFail(name);
+                    if (def == null)
+                    {
+                        return StepOutcome.Fail($"{Type}: no ThingDef named '{name}' in 'allow'");
+                    }
+
+                    zone.settings.filter.SetAllow(def, true);
+                }
+            }
+            else
+            {
+                zone.settings.filter.SetAllowAll(null);
+            }
 
             foreach (IntVec3 cell in CellRect.FromLimits(from, to))
             {
@@ -565,7 +585,11 @@ namespace WorkbenchGroups.Probes
             Log.Message($"[Workbench Groups] {Type}: {crafter?.LabelShort} job={crafter?.CurJob?.def?.defName} "
                 + $"target={crafter?.CurJob?.targetA.Thing?.LabelShort} food={crafter?.needs?.food?.CurLevelPercentage:F2} "
                 + $"rest={crafter?.needs?.rest?.CurLevelPercentage:F2} drafted={crafter?.Drafted} "
-                + $"uftWorkLeft={uft?.workLeft:F0} uftAt={uft?.Position}");
+                + $"uftWorkLeft={uft?.workLeft:F0} uftAt={uft?.Position} | "
+                + $"hauler {WbgTestState.Hauler?.LabelShort} job={WbgTestState.Hauler?.CurJob?.def?.defName} "
+                + $"at={WbgTestState.Hauler?.Position} | control spawned={WbgTestState.ControlItem?.Spawned} "
+                + $"at={WbgTestState.ControlItem?.Position} stored={WbgTestState.ControlItem?.IsInValidStorage()} "
+                + $"carriedBy={WbgTestState.ControlItem?.ParentHolder}");
             return new StepOutcome();
         }
     }

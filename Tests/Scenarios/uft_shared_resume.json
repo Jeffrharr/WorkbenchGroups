@@ -117,8 +117,10 @@
       "type": "WbgMakeStockpile",
       "args": {
         "from": "-2,4",
-        "to": "2,6"
-      }
+        "to": "2,6",
+        "allow": "Steel, UnfinishedApparel"
+      },
+      "comment": "Accepts only the control steel and the unfinished item, so the hauler's window is spent on the two things under test rather than the fixture colony's junk. Accepting the unfinished item is what makes 'left alone' a finding: the stockpile would take it."
     },
     {
       "type": "SpawnPawn",
