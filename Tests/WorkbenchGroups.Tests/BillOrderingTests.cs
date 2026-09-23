@@ -204,4 +204,71 @@ public class BillOrderingTests
         // rather than passing vacuously if the mode check is ever dropped.
         Assert.That(BillOrdering.IsNextOrderSpent(RepeatModeCode.TargetCount, 0), Is.False);
     }
+
+    // --- Batched round robin: the cadence gate ---
+
+    [TestCase(0)]
+    [TestCase(1)]
+    [TestCase(-3)]
+    public void A_batch_of_one_or_less_rotates_on_every_start(int batchSize)
+    {
+        // The inert default. Every bill starts here, so round robin behaves exactly as it did
+        // before batches existed until the player asks for something else.
+        Assert.That(BillOrdering.CompletesBatch(0, batchSize, out int after), Is.True);
+        Assert.That(after, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void A_batch_of_three_rotates_on_the_third_start_and_not_before()
+    {
+        int starts = 0;
+        bool[] rotated = new bool[7];
+        for (int i = 0; i < rotated.Length; i++)
+        {
+            rotated[i] = BillOrdering.CompletesBatch(starts, 3, out starts);
+        }
+
+        Assert.That(rotated, Is.EqualTo(new[] { false, false, true, false, false, true, false }));
+    }
+
+    [TestCase(5, 2)]
+    [TestCase(19, 3)]
+    public void Lowering_the_batch_below_the_running_count_rotates_at_once(int startsSoFar, int batch)
+    {
+        // Otherwise a counter already past the new size would count up forever towards a number
+        // it can never equal again, and the bill would never rotate.
+        Assert.That(BillOrdering.CompletesBatch(startsSoFar, batch, out int after), Is.True);
+        Assert.That(after, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void A_negative_counter_is_read_as_a_fresh_batch()
+    {
+        Assert.That(BillOrdering.CompletesBatch(-4, 2, out int after), Is.False);
+        Assert.That(after, Is.EqualTo(1));
+    }
+
+    [TestCase(0, 1)]
+    [TestCase(1, 1)]
+    [TestCase(7, 7)]
+    [TestCase(BillOrdering.MaxBatchSize, BillOrdering.MaxBatchSize)]
+    [TestCase(10000, BillOrdering.MaxBatchSize)]
+    [TestCase(int.MinValue, 1)]
+    public void Batch_sizes_are_clamped_into_the_offered_range(int raw, int expected)
+    {
+        Assert.That(BillOrdering.ClampBatchSize(raw), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void A_huge_batch_is_capped_so_the_bill_still_rotates_eventually()
+    {
+        int starts = 0;
+        int rotations = 0;
+        for (int i = 0; i < BillOrdering.MaxBatchSize; i++)
+        {
+            rotations += BillOrdering.CompletesBatch(starts, int.MaxValue, out starts) ? 1 : 0;
+        }
+
+        Assert.That(rotations, Is.EqualTo(1));
+    }
 }
