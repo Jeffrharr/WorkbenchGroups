@@ -13,8 +13,9 @@ namespace WorkbenchGroups.Patches
     ///    swaps the remembered per-bench value into vanilla's field around the scan and reads back
     ///    whatever vanilla decided, so no vanilla behaviour changes — only which bench the decision
     ///    is remembered against. Gated on the <c>isolateIngredientMute</c> setting.
-    /// 2. <b>The scanned bench, for unfinished-item orders.</b> <c>FinishUftJob</c> is private and
-    ///    only sees the bill, so the bench being scanned is handed across as a static via
+    /// 2. <b>The scanned bench and pawn, for unfinished-item orders.</b> <c>FinishUftJob</c> is
+    ///    private and only sees the bill, so the bench being scanned, and the pawn (to test
+    ///    whether it can use the bench the item is parked at), are handed across as statics via
     ///    <see cref="UnfinishedItemSharing.BeginScan"/>. Not gated on any setting: the redirect is
     ///    what makes those orders safe to share at all.
     ///
@@ -25,7 +26,7 @@ namespace WorkbenchGroups.Patches
     [HarmonyPatch(typeof(WorkGiver_DoBill), nameof(WorkGiver_DoBill.JobOnThing))]
     public static class Patch_WorkGiver_DoBill_JobOnThing
     {
-        public static void Prefix(Thing thing, out BillStack __state)
+        public static void Prefix(Pawn pawn, Thing thing, out BillStack __state)
         {
             __state = null;
 
@@ -44,7 +45,7 @@ namespace WorkbenchGroups.Patches
                 return;
             }
 
-            UnfinishedItemSharing.BeginScan(bench);
+            UnfinishedItemSharing.BeginScan(bench, pawn);
 
             if (WorkbenchGroupsMod.Settings?.isolateIngredientMute != true)
             {

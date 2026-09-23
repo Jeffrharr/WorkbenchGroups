@@ -9,8 +9,9 @@ using WorkbenchGroups.Core;
 namespace WorkbenchGroups.Patches
 {
     /// <summary>
-    /// Aims an unfinished-item order's resume job at the bench the pawn walked to, instead of the
-    /// bench that owns the list.
+    /// Aims an unfinished-item order's resume job at a bench of our choosing (the parked bench
+    /// when usable, else the scanned one; see <see cref="UnfinishedItemSharing.ResumeGiver"/>)
+    /// instead of always at the bench that owns the list.
     ///
     /// <c>FinishUftJob</c> reads <c>bill.billStack.billGiver</c> twice — once for the haul-off
     /// that clears the bench's ingredient cells, once for the resume job's <c>targetA</c>. Each of
