@@ -171,8 +171,8 @@ namespace WorkbenchGroups
         /// any class. See <c>RecipeGate</c> for why that is sound, and <c>DESIGN.md</c> for the
         /// residual risk it cannot cover.
         ///
-        /// Note this admits benches that can also make unshareable things — a machining table
-        /// makes both components and guns. That is intentional; the unshareable half is refused
+        /// Note this admits benches that can also make unshareable things — a bench mixing plain
+        /// recipes with, say, mech gestation. That is intentional; the unshareable half is refused
         /// per bill by <c>Patch_BillStack_AddBill</c>, not per bench.
         /// </summary>
         public static bool IsGroupableDef(ThingDef def)
@@ -218,16 +218,39 @@ namespace WorkbenchGroups
         /// <summary>
         /// Whether a bill can live in a shared stack.
         ///
-        /// Only plain <c>Bill_Production</c> qualifies. <c>Bill_ProductionWithUft</c> is the
-        /// painful exclusion: an unfinished thing is bound to the bill, and both
-        /// <c>WorkGiver_DoBill.FinishUftJob</c> and <c>HaulAIUtility</c> resolve it through
-        /// <c>bill.billStack.billGiver</c>. Shared, a pawn who started at one bench is sent to
-        /// the anchor to finish, and worse, an unfinished item left on a non-anchor bench fails
-        /// the "is it inside the owner's footprint" test forever and can never be hauled away.
+        /// Two exact types qualify: the plain <c>Bill_Production</c>, and
+        /// <c>Bill_ProductionWithUft</c> — the order that leaves an unfinished item behind. The
+        /// latter used to be refused because <c>WorkGiver_DoBill.FinishUftJob</c> aims the resume
+        /// job at <c>bill.billStack.billGiver</c>, which in a shared list is always the anchor.
+        /// <see cref="UnfinishedItemSharing"/> now answers that read with the bench being scanned,
+        /// so the order resumes wherever the pawn walked to, exactly as a plain order does.
+        ///
+        /// That admission is conditional on the redirect having actually been installed. If a
+        /// future RimWorld reshapes <c>FinishUftJob</c>'s IL the transpiler leaves it untouched and
+        /// <see cref="UnfinishedItemSharing.RedirectInstalled"/> stays false, and we fall back to
+        /// refusing these bills rather than shipping a half-working feature. The interlock guards
+        /// only the bill, deliberately: bench eligibility is decided by the startup injector, whose
+        /// order relative to our Harmony patching is undefined, so it cannot read this flag.
+        ///
+        /// Exact type comparisons rather than <c>is</c>, because every other subclass —
+        /// <c>Bill_Mech</c> (gestation), <c>Bill_ResurrectMech</c>, <c>Bill_Autonomous</c>
+        /// (forming), and anything a mod derives — casts the list's owner back to its own bench
+        /// class somewhere, and a shared list's owner is not the bench the pawn is standing at.
         /// </summary>
         public static bool IsShareableBill(Bill bill)
         {
-            return bill != null && bill.GetType() == typeof(Bill_Production);
+            if (bill == null)
+            {
+                return false;
+            }
+
+            System.Type type = bill.GetType();
+            if (type == typeof(Bill_Production))
+            {
+                return true;
+            }
+
+            return type == typeof(Bill_ProductionWithUft) && UnfinishedItemSharing.RedirectInstalled;
         }
 
         /// <summary>

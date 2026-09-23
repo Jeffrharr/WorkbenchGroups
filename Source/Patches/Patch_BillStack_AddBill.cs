@@ -8,12 +8,14 @@ namespace WorkbenchGroups.Patches
     /// Keeps bills that cannot be shared out of a shared stack.
     ///
     /// This is the guard that lets bench eligibility be generous. A bench is admitted if it has
-    /// *any* plain recipe, because refusing every bench that can also make an unfinished thing
-    /// would exclude every crafting bench in the game (see <see cref="Core.RecipeGate"/>). The
-    /// price of that generosity is that a grouped machining table still offers "make assault
-    /// rifle", and vanilla would happily put the resulting <c>Bill_ProductionWithUft</c> into the
-    /// group's list — where its unfinished item resolves through <c>billStack.billGiver</c> and
-    /// ends up stranded on whichever bench owns the stack.
+    /// *any* shareable recipe (see <see cref="Core.RecipeGate"/>), so a bench that mixes those
+    /// with, say, mech gestation still offers the gestation recipe, and vanilla would happily put
+    /// the resulting <c>Bill_Mech</c> into the group's list — where it casts the list's owner to
+    /// its own bench class and breaks on every member but the anchor.
+    ///
+    /// Orders that leave an unfinished item behind used to be the main customer of this guard.
+    /// They are shareable now (see <see cref="UnfinishedItemSharing"/>), and reach this refusal
+    /// only if the redirect that makes them work failed to install.
     ///
     /// Refused rather than silently unlinking the bench: unlinking is a bigger, less reversible
     /// surprise than a rejected order, and the player who wanted the order can unlink deliberately.
