@@ -5,14 +5,20 @@ using Verse;
 namespace WorkbenchGroups.Patches
 {
     /// <summary>
-    /// Gives each bench in a group its own "no ingredients, retry later" timer.
+    /// Brackets each bench's work scan, for two jobs that both need to know which bench of a group
+    /// is being looked at.
     ///
-    /// See <see cref="IngredientMuteIsolation"/> for why the shared timer is a problem. This pair
-    /// swaps the remembered per-bench value into vanilla's field around the scan and reads back
-    /// whatever vanilla decided, so no vanilla behaviour changes — only which bench the decision
-    /// is remembered against.
+    /// 1. <b>Per-bench "no ingredients, retry later" timer.</b> See
+    ///    <see cref="IngredientMuteIsolation"/> for why the shared timer is a problem. The pair
+    ///    swaps the remembered per-bench value into vanilla's field around the scan and reads back
+    ///    whatever vanilla decided, so no vanilla behaviour changes — only which bench the decision
+    ///    is remembered against. Gated on the <c>isolateIngredientMute</c> setting.
+    /// 2. <b>The scanned bench, for unfinished-item orders.</b> <c>FinishUftJob</c> is private and
+    ///    only sees the bill, so the bench being scanned is handed across as a static via
+    ///    <see cref="UnfinishedItemSharing.BeginScan"/>. Not gated on any setting: the redirect is
+    ///    what makes those orders safe to share at all.
     ///
-    /// We deliberately touch only the field and never the return value. Another popular mod
+    /// We deliberately touch only state and never the return value. Another popular mod
     /// postfixes this same method and replaces the job it returns outright; leaving the result
     /// alone keeps the two compatible.
     /// </summary>
@@ -23,20 +29,24 @@ namespace WorkbenchGroups.Patches
         {
             __state = null;
 
-            if (WorkbenchGroupsMod.Settings?.isolateIngredientMute != true)
-            {
-                return;
-            }
-
             if (!(thing is Building_WorkTable bench) || !bench.Spawned)
             {
                 return;
             }
 
             // IsGrouped rather than GroupSize: one hash lookup instead of GetComp plus a
-            // dictionary walk, on a method that runs per bench per pawn per work scan.
+            // dictionary walk, on a method that runs per bench per pawn per work scan. This lookup
+            // is now unconditional — it used to sit behind the setting check below — which is why
+            // it had to be the near-free one.
             BillGroupIndex index = BillGroupIndex.For(bench.Map);
             if (index == null || !index.IsGrouped(bench))
+            {
+                return;
+            }
+
+            UnfinishedItemSharing.BeginScan(bench);
+
+            if (WorkbenchGroupsMod.Settings?.isolateIngredientMute != true)
             {
                 return;
             }
@@ -46,12 +56,17 @@ namespace WorkbenchGroups.Patches
         }
 
         /// <summary>
-        /// A finalizer so the timer is stored back even if the scan throws — otherwise one
-        /// exception would leave every bill in the group carrying whichever bench's timer happened
-        /// to be loaded at the time.
+        /// A finalizer so both jobs unwind even if the scan throws. Without it, one exception would
+        /// leave every bill in the group carrying whichever bench's timer happened to be loaded,
+        /// and would leave a stale scanned bench for the next, unrelated scan to redirect towards.
+        ///
+        /// <see cref="UnfinishedItemSharing.EndScan"/> is unconditional because it is one static
+        /// write, cheaper than working out whether the prefix set anything.
         /// </summary>
         public static void Finalizer(Thing thing, BillStack __state)
         {
+            UnfinishedItemSharing.EndScan();
+
             if (__state != null && thing != null)
             {
                 IngredientMuteIsolation.StoreFrom(__state, thing.thingIDNumber);
