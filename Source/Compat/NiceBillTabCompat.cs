@@ -94,6 +94,7 @@ namespace WorkbenchGroups.Compat
                 PatchBillRow(harmony, drawer);
                 PatchLeftPane(harmony, drawer);
                 PatchRowStripes(harmony, drawer);
+                PatchBillDrop(harmony, drawer);
             }
             catch (Exception e)
             {
@@ -149,6 +150,49 @@ namespace WorkbenchGroups.Compat
 
             harmony.Patch(target, prefix: new HarmonyMethod(
                 typeof(NiceBillTabCompat), nameof(InsertBillPrefix)));
+        }
+
+        /// <summary><c>TabBillsDrawer.LastSelTable</c>: the bench whose list a drop lands in.</summary>
+        private static FieldInfo lastSelTableField;
+
+        /// <summary>
+        /// Refuses their drag-and-drop reorder while the group is in Balance mode — the drag
+        /// counterpart of <c>Patch_BillStack_Reorder</c>'s refusal of vanilla's arrows.
+        ///
+        /// Their drop is a bare <c>Bills.Remove</c>/<c>Insert</c>, so the <c>Reorder</c> prefix
+        /// never sees it. Left alone it still would not corrupt anything — the next scan's sort
+        /// absorbs the move into the authored order and then sorts over it — but the dragged row
+        /// would jump back within a second, which is the "works just long enough to look broken"
+        /// behaviour greying the arrows exists to avoid. Skipping their handler leaves their own
+        /// drag state to reset itself, which it does unconditionally on mouse-up.
+        /// </summary>
+        private static void PatchBillDrop(Harmony harmony, Type drawer)
+        {
+            MethodInfo target = AccessTools.Method(drawer, "HandleBillDrop");
+            lastSelTableField = AccessTools.Field(drawer, "LastSelTable");
+            if (target == null || lastSelTableField == null)
+            {
+                Log.Warning(
+                    "[Workbench Groups] Nice Bill Tab's drop handler was not found, so a drag in "
+                    + "its bills tab is not refused while a group is in Balance mode. The drag will "
+                    + "be sorted back within a second instead.");
+                return;
+            }
+
+            harmony.Patch(target, prefix: new HarmonyMethod(
+                typeof(NiceBillTabCompat), nameof(HandleBillDropPrefix)));
+        }
+
+        private static bool HandleBillDropPrefix()
+        {
+            Building_WorkTable table = lastSelTableField.GetValue(null) as Building_WorkTable;
+            if (!Patch_BillStack_Reorder.IsOwnedByBalance(table?.billStack))
+            {
+                return true;
+            }
+
+            Messages.Message("WBG_DragRefusedBalance".Translate(), MessageTypeDefOf.RejectInput, false);
+            return false;
         }
 
         /// <summary>

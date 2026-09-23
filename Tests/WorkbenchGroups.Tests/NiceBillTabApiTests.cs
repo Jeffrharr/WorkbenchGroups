@@ -84,6 +84,20 @@ public class NiceBillTabApiTests
     }
 
     [Test]
+    public void HandleBillDrop_and_LastSelTable_still_exist_for_the_Balance_refusal()
+    {
+        // Their drag-and-drop reorder. Balance refuses it with a no-argument prefix that reads
+        // the table from LastSelTable; lose either and a drag under Balance is sorted back a
+        // second later instead of being refused.
+        Assert.That(MethodOf("HandleBillDrop"), Is.Not.Null, "TabBillsDrawer.HandleBillDrop no longer exists");
+
+        var field = Drawer?.Fields.SingleOrDefault(f => f.Name == "LastSelTable");
+        Assert.That(field, Is.Not.Null, "TabBillsDrawer.LastSelTable no longer exists");
+        Assert.That(field!.IsStatic, Is.True);
+        Assert.That(field.FieldType.FullName, Is.EqualTo("RimWorld.Building_WorkTable"));
+    }
+
+    [Test]
     public void DrawBillPreview_still_takes_the_arguments_the_annotations_bind()
     {
         // Their per-row drawer, which replaces Bill.DoInterface. The rect is the row as actually

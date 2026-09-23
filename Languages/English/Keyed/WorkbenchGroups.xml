@@ -19,7 +19,8 @@
   <WBG_ModeInOrder>in order</WBG_ModeInOrder>
   <WBG_ModeRoundRobin>round robin</WBG_ModeRoundRobin>
   <WBG_ModeBalance>balance</WBG_ModeBalance>
-  <WBG_ModeWithOneEachFirst>{0}, one of each first</WBG_ModeWithOneEachFirst>
+  <WBG_ModeWithOneEachFirst>{0} + one each</WBG_ModeWithOneEachFirst>
+  <WBG_DragRefusedBalance>Balance mode decides this group's order. Switch to "in order" or round robin to arrange orders yourself.</WBG_DragRefusedBalance>
   <WBG_ReorderOwnedByBalance>Balance mode decides the order of this list, so orders cannot be moved by hand. Switch the group back to "in order" or round robin to arrange them yourself; your own arrangement comes back when you do.</WBG_ReorderOwnedByBalance>
   <WBG_InspectLinked>Linked: {0} stations ({1})</WBG_InspectLinked>
 

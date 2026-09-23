@@ -30,7 +30,7 @@ namespace WorkbenchGroups.Probes
 
             if (!args.TryGetValue("mode", out string mode) || !Enum.TryParse(mode, out OrderingMode _))
             {
-                error = "WbgSetOrdering requires 'mode': InOrder or RoundRobin";
+                error = $"WbgSetOrdering requires 'mode', one of: {string.Join(", ", Enum.GetNames(typeof(OrderingMode)))}";
                 return false;
             }
 
