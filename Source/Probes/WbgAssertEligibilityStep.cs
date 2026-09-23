@@ -7,6 +7,7 @@ using RimWorldTestHarness.Mod.Steps;
 using RimWorldTestHarness.Shared;
 using RimWorldTestHarness.Shared.Steps;
 using Verse;
+using WorkbenchGroups.Core;
 
 namespace WorkbenchGroups.Probes
 {
@@ -125,22 +126,29 @@ namespace WorkbenchGroups.Probes
             foreach (ThingDef def in benches)
             {
                 List<RecipeDef> recipes = def.AllRecipes ?? new List<RecipeDef>();
-                int plain = recipes.Count(IsPlainRecipe);
+                int shareable = recipes.Count(recipe => RecipeGate.MakesShareableBill(ShapeOf(recipe)));
+                int plain = recipes.Count(recipe => RecipeGate.MakesPlainProductionBill(ShapeOf(recipe)));
 
                 census.Append($"\n  {(BenchEligibility.IsGroupableDef(def) ? "yes" : " no")}  ")
                     .Append($"{def.defName} ({def.thingClass.Name}) ")
-                    .Append($"{plain}/{recipes.Count} plain recipes");
+                    .Append($"{shareable}/{recipes.Count} shareable recipes, {plain} plain");
             }
 
             Log.Message(census.ToString());
         }
 
-        private static bool IsPlainRecipe(RecipeDef recipe)
+        /// <summary>
+        /// The recipe's shape, judged by the same <see cref="RecipeGate"/> the mod uses. This probe
+        /// used to keep its own copy of the rule, and the copy went stale the moment unfinished-item
+        /// recipes became shareable — the census then contradicted the verdict printed beside it.
+        /// </summary>
+        private static RecipeShape ShapeOf(RecipeDef recipe)
         {
-            return !recipe.UsesUnfinishedThing
-                && !recipe.mechResurrection
-                && recipe.gestationCycles <= 0
-                && recipe.formingTicks <= 0;
+            return new RecipeShape(
+                recipe.UsesUnfinishedThing,
+                recipe.mechResurrection,
+                recipe.gestationCycles,
+                recipe.formingTicks);
         }
     }
 }
