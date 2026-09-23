@@ -346,4 +346,44 @@ namespace WorkbenchGroups.Probes
             return -1f;
         }
     }
+
+    /// <summary>
+    /// The whole shared list, as the queued slots in list order, each plus one, read as digits:
+    /// a list holding slots 2, 0, 1 reads 312.
+    ///
+    /// One number for the whole order because the ordering features are claims about the whole
+    /// list — a batch that holds the head, a restore that puts every bill back, a sort — and a
+    /// head-only probe passes on a list whose tail is wrong. Plus one so a leading slot 0 is not a
+    /// dropped leading zero. Nine bills is the most this can spell, which no scenario needs.
+    /// </summary>
+    public sealed class BillOrderProbe : IProbe, IProbeMetadata
+    {
+        public string Name => "wbg_bill_order";
+        public string Description => "Queued slots in shared-list order, each plus one, as digits (slots 2,0,1 read 312). -1 if a bill is untracked or there are more than nine.";
+        public string Unit => "digits";
+
+        public float Read(Map map)
+        {
+            Building_WorkTable bench = WbgTestState.Benches.Count > 0 ? WbgTestState.Benches[0] : null;
+            BillStack stack = bench?.billStack;
+            if (stack == null || stack.Count == 0 || stack.Count > 9)
+            {
+                return -1f;
+            }
+
+            float digits = 0f;
+            foreach (Bill bill in stack.Bills)
+            {
+                int slot = WbgTestState.Bills.IndexOf(bill as Bill_Production);
+                if (slot < 0 || slot > 8)
+                {
+                    return -1f;
+                }
+
+                digits = digits * 10f + slot + 1;
+            }
+
+            return digits;
+        }
+    }
 }
