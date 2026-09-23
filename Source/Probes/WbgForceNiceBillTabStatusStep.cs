@@ -20,13 +20,14 @@ namespace WorkbenchGroups.Probes
     /// that would compute it — but nothing calls the validator, and <c>GetBillStatus</c> only
     /// ever returns Processed, Pending or Doned. Setting every cook's priority to zero changes
     /// nothing on their tab. Our compat layer still handles the status, because a future release
-    /// that wires the validator up would otherwise have our green or blue painted over their red.
+    /// that wires the validator up would otherwise have our green or blue painted over it.
     ///
     /// So the only way to see that rule on screen is to hand their drawer the status it would
-    /// receive. A postfix on <c>GetBillStatus</c> does exactly that and nothing else: their own
-    /// row code then paints the red, and our prefix reads the same argument it would read in the
-    /// real case. A capture made with this step says "this is what our layer does when they say
-    /// red", not "this is a state players see today" — captions must say so.
+    /// receive. A postfix on <c>GetBillStatus</c> does exactly that and nothing else: their row
+    /// code then draws the state, and our prefix reads the same argument it would read in the real
+    /// case and repaints it grey. A capture made with this step says "this is what our layer does
+    /// when they say nobody can do this", not "this is a state players see today" — captions must
+    /// say so.
     ///
     /// Patched by name for the same reason the shipped compat layer is: a hard reference to
     /// NiceBillTab.dll would make this whole bridge fail to load in every scenario without it.

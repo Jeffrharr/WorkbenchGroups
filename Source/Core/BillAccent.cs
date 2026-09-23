@@ -36,6 +36,12 @@ namespace WorkbenchGroups.Core
 
         /// <summary>The "do this next" marker's red.</summary>
         NextOrder,
+
+        /// <summary>
+        /// A dark neutral grey for "nobody can do this work". Only a compact host produces it; see
+        /// <see cref="BillAccentRule.StripeFor"/> for why that state is not red.
+        /// </summary>
+        Blocked,
     }
 
     /// <summary>
@@ -103,10 +109,9 @@ namespace WorkbenchGroups.Core
         /// marker: it is the explicit instruction, and the accent loses nothing by it because its
         /// edge bar still says the same thing.
         ///
-        /// A compact host — Nice Bill Tab — gets no fill from us at all. It tints the row's
-        /// background itself, and there the accent recolours *that* tint rather than adding one;
-        /// a wash laid over it would say the same thing twice. That includes the marker, whose
-        /// outline and badge carry it without help.
+        /// A compact host — Nice Bill Tab — gets no fill *drawn* by us. It tints the row's
+        /// background itself, so there we recolour that tint instead of adding one; a wash laid
+        /// over it would say the same thing twice. <see cref="StripeFor"/> decides the recolour.
         ///
         /// Work at another bench never gets a fill even in vanilla's tab: it is the weakest of the
         /// claims and should not shout as loudly as the bench the player is standing at.
@@ -133,9 +138,49 @@ namespace WorkbenchGroups.Core
         /// speaks through the edge bar alone: in Nice Bill Tab that is the only thing that tells it
         /// apart from work here, since both would otherwise repaint the stripes the same green.
         /// </summary>
+        /// <remarks>See <see cref="StripeFor"/> for how the compact host's tint is decided.</remarks>
         public static bool FillsRow(BillAccent accent)
         {
             return accent == BillAccent.WorkedHere || accent == BillAccent.NextUp;
+        }
+
+        /// <summary>
+        /// What colour a compact host's row tint — Nice Bill Tab's stripes — is repainted to, or
+        /// <see cref="RowWash.None"/> to leave theirs. The same one-fill-per-row rule as
+        /// <see cref="WashFor"/>, applied to the surface that host already draws.
+        ///
+        /// **Red means "do this next", in both tabs.** Vanilla's tab gives the marked row a red
+        /// wash, so the marked row's stripes go red here. The first version left the marked row
+        /// with only an outline and arrow while a different row carried red stripes — Nice Bill
+        /// Tab's own <c>NoOneCanDo</c> — and the player reasonably read the red row as the
+        /// priority one. One colour has to have one meaning across the two tabs.
+        ///
+        /// **So their "nobody can do this" state is the one place we repaint a state of theirs**,
+        /// to a dark grey. Red cannot mean both things, and theirs is the one that yields,
+        /// because in Nice Bill Tab 1.6 it never fires: the enum member and its red stripe exist,
+        /// but <c>GetBillStatus</c> never returns it and nothing calls the validator that would
+        /// compute it. Recolouring a state no player can reach today costs nothing, and if a
+        /// future release wires it up, it arrives already distinct from the marker.
+        ///
+        /// Blocked still outranks everything, the marker included, as red did before: every
+        /// other signal describes work that is happening or wanted, and "nobody can do it"
+        /// contradicts all of them. A marked order that nobody can do keeps its outline and
+        /// arrow, so the mark is still visible; it just does not get to paint the row red over a
+        /// fact that says the mark will not be honoured.
+        /// </summary>
+        public static RowWash StripeFor(BillAccent accent, bool marked)
+        {
+            if (accent == BillAccent.Blocked)
+            {
+                return RowWash.Blocked;
+            }
+
+            if (marked)
+            {
+                return RowWash.NextOrder;
+            }
+
+            return FillsRow(accent) ? RowWash.Accent : RowWash.None;
         }
     }
 }

@@ -128,7 +128,7 @@ namespace WorkbenchGroups.Patches
         /// mod's own green; a saturated red is the one accent that cannot be mistaken for any of
         /// them at a glance.
         /// </summary>
-        private static readonly Color NextOrderAccent = new Color(0.9f, 0.25f, 0.25f, 1f);
+        public static readonly Color NextOrderAccent = new Color(0.9f, 0.25f, 0.25f, 1f);
 
         /// <summary>
         /// Kept as faint as the active-bill wash, and for the same reason: a marked order is very
@@ -443,7 +443,7 @@ namespace WorkbenchGroups.Patches
                 // Blocked draws nothing of ours in vanilla's tab: vanilla already paints a bill it
                 // would not start, and a red bar on top of that is the same sentence twice. The
                 // state exists in the enum because the *replacement* tab needs it, where it means
-                // "leave their red alone".
+                // "nobody can do this", painted grey over everything else.
                 return;
             }
 

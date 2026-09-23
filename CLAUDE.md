@@ -25,7 +25,9 @@ replacement tab actually costs"):
 Checklist for a change in this area:
 
 - **Drawing:** route row colours through `Patch_Bill_DoInterface.AccentFor` / `Core.BillAccent`
-  so the two tabs can't disagree, and draw the feature in `NiceBillTabCompat` too.
+  so the two tabs can't disagree, and draw the feature in `NiceBillTabCompat` too. One colour, one
+  meaning: **red is "do this next" and nothing else**, in both tabs — which is why their
+  `NoOneCanDo` stripes are repainted grey (`BillAccentRule.StripeFor`).
 - **List changes, and rules about who may add a bill:** assume their tab changes the list directly.
   Never rely only on a `BillStack` method patch. If our own code moves bills without going through
   `BillStack`, record the result as our own (see `NextOrder.PromoteToHead`), or it will be read as
