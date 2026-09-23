@@ -29,6 +29,59 @@ That rules out the tidy-looking design where a group object owns the stack and p
 `billGiver` at a synthetic owner. Instead one member — the **anchor** — owns the list,
 and the others point at it. Every cast keeps seeing a real, spawned bench.
 
+The price is that every one of those reads answers "the anchor", whichever bench the pawn is
+actually at. For most of them that is cosmetic — a message looks at the wrong bench. The
+largest real consequence used to be that orders leaving an unfinished item behind (apparel,
+weapons, sculptures) could not be shared at all. That exclusion is gone; see below.
+
+### Unfinished-item orders follow the pawn, not the list
+
+`Bill_ProductionWithUft` was refused from shared lists because `WorkGiver_DoBill.FinishUftJob`
+aims the resume job at `bill.billStack.billGiver` — the anchor — so a pawn standing at a free
+member was sent to the anchor, and the haul-off cleared the anchor's cells. The refusal treated
+that as structural. It is one read. Vanilla's own plain path, two screens further down, passes
+`giver` for the identical call; the unfinished-item path is the outlier, not the rule.
+
+So `UnfinishedItemSharing` answers "which bench is this item's" for all three vanilla sites that
+ask, and each is widened from the anchor to the group rather than rewritten:
+
+| Site | Fix |
+|---|---|
+| `FinishUftJob` — resume target and haul-off (`WorkGiver_DoBill.cs:175,180`) | Transpiler: each `ldfld billStack; ldfld billGiver` pair becomes `call ResumeGiver(bill)`, which answers the bench being scanned when it shares the list and can make the recipe, else exactly vanilla's read. |
+| `HaulAIUtility.PawnCanAutomaticallyHaulFast` — "leave a parked item alone" (`:94`) | Postfix that only turns yes into no: the item sits within any group bench's footprint+1, and its bill is next due. |
+| `UnfinishedThing.BoundWorkTable` — placement validator and selection line (`HaulAIUtility.cs:313`) | Postfix substituting the group bench the item is parked at. |
+
+`Bill_ProductionWithUft.BoundWorker`'s work-type lookup also reads the anchor's def. That is left
+alone: linking requires identical recipe sets, so the anchor's def answers the same, and the
+worst it could ever do is unbind a worker.
+
+**Resume at the scanned bench, not the bench the item is parked on.** The scanned bench is the
+free one, and "the pawn goes to whichever bench is free" is the promise the mod makes for plain
+orders. If the item sits elsewhere the pawn carries it over — the same cost vanilla already pays
+when an item has been hauled to a stockpile. The scanned bench crosses into the private method as
+a static set by the `JobOnThing` prefix; the finalizer, not a postfix, clears it, so an exception
+mid-scan cannot leave a stale bench for an unrelated scan to redirect towards.
+
+**No setting.** A toggle would leave bills already merged into a shared list while the redirect
+that makes them work is off — worse than either end of the switch.
+
+**Fail closed instead.** The transpiler rewrites only when it finds exactly the two reads it
+expects; any other count logs an error and returns the original IL. It reports its verdict
+through `UnfinishedItemSharing.RedirectInstalled`, and `IsShareableBill` requires that flag
+before admitting an unfinished-item bill, so a future RimWorld that reshapes the method reverts
+the mod to the old refusal instead of shipping half a feature. The interlock guards only the
+*bill*: bench eligibility is decided by the startup injector, and it and our Harmony startup are
+both `[StaticConstructorOnStartup]` with no defined order between them. A Cecil test runs the
+transpiler's own matcher over the shipped `Assembly-CSharp.dll`, so a changed shape is caught
+offline before a player sees the fallback.
+
+**One bench at a time per order.** A `Bill_ProductionWithUft` holds one bound item and one bound
+worker, so an unfinished-item order occupies one bench of the group until it finishes. That is
+vanilla's rule per bill, not something sharing breaks; the group works its other orders in
+parallel. Under round robin such an order rotates to the tail when its job starts, so a
+half-finished item can wait while the other orders take their turns — correct, and the order is
+resumed when it comes round again.
+
 ## Why a field swap rather than a patched property
 
 `Building_WorkTable.BillStack` is a property, but `ITab_Bills` reads the `billStack`
@@ -192,17 +245,21 @@ once per bill per frame while the tab is open.
 - **Benches with no shareable recipe at all.** Eligibility is decided by what a bench
   *makes*, not by its C# class. `BillUtility.MakeNewBill` picks the `Bill` subclass from the
   `RecipeDef` alone — `UsesUnfinishedThing`, `mechResurrection`, `gestationCycles > 0`,
-  `formingTicks > 0`, else plain `Bill_Production` — so the only bill type we can share is
+  `formingTicks > 0`, else plain `Bill_Production` — so the bill types we can share are
   predictable from the def, with no reference to the bench's class. A bench is offered the
-  gizmo when at least one of its recipes makes a plain `Bill_Production`; if none does, a
-  group could never hold anything and the gizmo would be a lie.
+  gizmo when at least one of its recipes makes a plain `Bill_Production` or a
+  `Bill_ProductionWithUft`; if none does, a group could never hold anything and the gizmo
+  would be a lie.
 
-  This replaced a whitelist of two exact types, which was wrong in both directions. It
-  excluded every modded bench with a custom `thingClass`, and it *included*
-  `SubcoreEncoder` — a plain `Building_WorkTable` whose one recipe has `formingTicks`, so
-  the old rule would have put a `Bill_Autonomous` into a shared stack.
+  This replaced a whitelist of two exact types, which excluded every modded bench with a
+  custom `thingClass`. (This paragraph used to say the whitelist also wrongly admitted
+  `SubcoreEncoder` because its one recipe has `formingTicks`. The live census says otherwise:
+  its only recipe, `SubcoreBasic`, is an unfinished-item recipe, so the encoder was excluded
+  for that reason and is groupable now. The mech gestators are what remain excluded.)
 
-  **"At least one" and not "every one" is the load-bearing choice.** The stricter form is
+  **"At least one" and not "every one" was the load-bearing choice** while unfinished-item
+  orders were unshareable, and the reasoning is kept because it still decides mixed benches.
+  The stricter form is
   tempting because it makes an unshareable bill impossible on a grouped bench. Measured
   against the loaded def database it excludes every crafting bench in the game: apparel,
   weapons, armour and sculptures all use unfinished things, so tailoring benches (1 of 45
@@ -213,10 +270,10 @@ once per bill per frame while the tab is open.
 
   So the recipe test lives at the bill instead, where the danger actually is:
   `Patch_BillStack_AddBill` refuses a non-shareable bill entry into a shared stack, on every
-  route — the tab's dropdown, paste from the clipboard, another mod adding one in code.
-  A grouped machining table still offers "make assault rifle" and refuses it with a message
-  naming the bill, which is a smaller surprise than the gizmo being absent from every
-  crafting bench in the colony.
+  route — the tab's dropdown, paste from the clipboard, another mod adding one in code. Since
+  unfinished-item orders became shareable, the benches this protected in practice (machining
+  table, smithy, tailoring bench) no longer hit it; what remains behind it are the mech bill
+  types, and any unfinished-item order if the redirect failed to install.
 - **Bench classes assignable to `Building_WorkTableAutonomous`.** A safety net, not the
   rule. That class and its descendant `Building_MechGestator` cast the bill's owner back to
   their own type, so a wrong-class anchor throws every frame rather than degrading. Their
@@ -230,9 +287,12 @@ once per bill per frame while the tab is open.
   box is a same-evening fix rather than a wait for a release. `BillGroupOps.Link` also rolls
   back if anything throws partway through, so a bench class we admitted on trust cannot cost
   the player their work orders.
-- **Bills that are not exactly `Bill_Production`.** `Bill_ProductionWithUft` is the
-  painful one: an unfinished item left on a non-anchor bench fails `HaulAIUtility`'s
-  "inside the owner's footprint" test forever and can never be hauled away.
+- **Bills that are not exactly `Bill_Production` or `Bill_ProductionWithUft`.** `Bill_Mech`
+  (gestation), `Bill_ResurrectMech` and `Bill_Autonomous` (forming) cast the list's owner back
+  to their own bench class, which in a shared list is not the bench the pawn is at. Exact type
+  tests, so a modded subclass of either admitted type is refused too — it may override exactly
+  the member that reads the owner. `Bill_ProductionWithUft` used to be on this list; see
+  "Unfinished-item orders follow the pawn, not the list".
 - **Different recipe sets.** Vanilla's selection has no notion of "this bill is only valid
   at some of these benches"; requiring identical sets makes every bill trivially valid
   everywhere, which is what lets the selection loop stay untouched.
@@ -416,6 +476,9 @@ own delete button, a few pixels to the right, genuinely does shrink the list mid
 - **A group shares vanilla's cap of 15 bills**, not 15 per bench. Refused at link time with
   the actual count rather than silently truncated.
 - **Message and dialog look-targets point at the anchor**, not the bench that finished.
+- **An unfinished-item order occupies one bench of its group until it finishes**, and under
+  round robin can wait at the tail half-made. Both follow from vanilla binding one item and one
+  worker to such a bill; see "Unfinished-item orders follow the pawn, not the list".
 - **A rebuilt bench is a new Thing** and silently leaves its group. Detected and shown on
   the inspect string only.
 - **A marked "do this next" order can sit red and idle.** It is at the head of the list, and
