@@ -17,6 +17,8 @@
 
   <ItemGroup>
     <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" />
+    <!-- Compile-time only, like the shipped mod: the harness and the game already load Harmony. -->
+    <PackageReference Include="Lib.Harmony" Version="2.3.*" ExcludeAssets="runtime" />
   </ItemGroup>
 
   <ItemGroup>
@@ -34,6 +36,7 @@
     <Compile Include="../Source/Probes/WbgFocusBenchStep.cs" Link="WbgFocusBenchStep.cs" />
     <Compile Include="../Source/Probes/WbgClaimBenchesStep.cs" Link="WbgClaimBenchesStep.cs" />
     <Compile Include="../Source/Probes/WbgNextOrderSteps.cs" Link="WbgNextOrderSteps.cs" />
+    <Compile Include="../Source/Probes/WbgForceNiceBillTabStatusStep.cs" Link="WbgForceNiceBillTabStatusStep.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -24,6 +24,9 @@ namespace WorkbenchGroups.Probes
             ProbeRegistry.Register(new DuplicateSaveIdProbe());
             ProbeRegistry.Register(new NextOrderSlotProbe());
             ProbeRegistry.Register(new MarkedBillShouldDoNowProbe());
+            ProbeRegistry.Register(new AccentSlotProbe("wbg_worked_here_slot", Core.BillAccent.WorkedHere));
+            ProbeRegistry.Register(new AccentSlotProbe("wbg_worked_elsewhere_slot", Core.BillAccent.WorkedElsewhere));
+            ProbeRegistry.Register(new AccentSlotProbe("wbg_next_up_slot", Core.BillAccent.NextUp));
         }
     }
 }
