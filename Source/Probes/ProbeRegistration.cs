@@ -27,6 +27,20 @@ namespace WorkbenchGroups.Probes
             ProbeRegistry.Register(new AccentSlotProbe("wbg_worked_here_slot", Core.BillAccent.WorkedHere));
             ProbeRegistry.Register(new AccentSlotProbe("wbg_worked_elsewhere_slot", Core.BillAccent.WorkedElsewhere));
             ProbeRegistry.Register(new AccentSlotProbe("wbg_next_up_slot", Core.BillAccent.NextUp));
+
+            // Unfinished-item craft loop (issue #11).
+            ProbeRegistry.Register(new RedirectInstalledProbe());
+            ProbeRegistry.Register(new CrafterJobAtProbe());
+            ProbeRegistry.Register(new CrafterJobVanillaAtProbe());
+            ProbeRegistry.Register(new ResumeTargetAtProbe());
+            ProbeRegistry.Register(new UftCountProbe());
+            ProbeRegistry.Register(new UftAtProbe());
+            ProbeRegistry.Register(new UftBoundTableAtProbe());
+            ProbeRegistry.Register(new UftVanillaGuardProbe());
+            ProbeRegistry.Register(new UftHaulableProbe());
+            ProbeRegistry.Register(new UftSameItemProbe());
+            ProbeRegistry.Register(new FirstBillRemainingProbe());
+            ProbeRegistry.Register(new ControlInStorageProbe());
         }
     }
 }
