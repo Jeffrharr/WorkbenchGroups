@@ -136,6 +136,11 @@ namespace WorkbenchGroups
 
             anchorComp.LastKnownOrderIds.Clear();
             anchorComp.LastKnownOrderIds.AddRange(LoadIdsOf(stack));
+
+            // Every deliberate move of ours ends here, which makes it the one place to tell a tab
+            // that caches the list that it is out of date. Occasionally bumped when nothing moved
+            // (a no-op rotation); the cost of that is one unneeded rebuild of their filtered copy.
+            OwnBillListMoves.Note();
         }
 
         private static string[] LoadIdsOf(BillStack stack)

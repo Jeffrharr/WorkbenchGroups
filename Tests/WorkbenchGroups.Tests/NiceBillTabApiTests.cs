@@ -140,4 +140,47 @@ public class NiceBillTabApiTests
             "Nice Bill Tab now calls BillStack.Reorder — revisit whether the lazy divergence "
             + "check in Core.OrderDivergence is still load-bearing for this mod.");
     }
+
+    [Test]
+    public void Selections_is_still_a_public_static_list_of_RecipeSelection()
+    {
+        // The "do this next" button above their list acts on their selection. If this field is
+        // renamed or stops being static, the lookup returns null and the button shows as having
+        // nothing selected, forever, with no error.
+        var field = Drawer?.Fields.SingleOrDefault(f => f.Name == "Selections");
+        Assert.That(field, Is.Not.Null, "TabBillsDrawer.Selections no longer exists");
+        Assert.That(field!.IsStatic && field.IsPublic, Is.True, "Selections is no longer public static");
+        Assert.That(field.FieldType.FullName, Does.Contain("NiceBillTab.RecipeSelection"));
+    }
+
+    [Test]
+    public void RecipeSelection_SelectedBill_is_still_a_Bill_field()
+    {
+        var field = _module.Types.SingleOrDefault(t => t.FullName == "NiceBillTab.RecipeSelection")?
+            .Fields.SingleOrDefault(f => f.Name == "SelectedBill");
+        Assert.That(field, Is.Not.Null, "RecipeSelection.SelectedBill no longer exists");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("RimWorld.Bill"));
+    }
+
+    [Test]
+    public void SelectBill_still_takes_a_bill_and_an_add_flag()
+    {
+        // Only the scenario step calls this (to select a bill the way a click would), but a
+        // scenario that silently selects nothing would pass its "nothing selected" checks.
+        var method = MethodOf("SelectBill");
+        Assert.That(method, Is.Not.Null, "TabBillsDrawer.SelectBill no longer exists");
+        Assert.That(method!.Parameters.Select(p => p.ParameterType.FullName),
+            Is.EqualTo(new[] { "RimWorld.Bill", "System.Boolean" }));
+    }
+
+    [Test]
+    public void ShouldRefreshFilter_is_still_a_public_static_bool()
+    {
+        // Their bill list is drawn from a cached copy that only this flag rebuilds. We set it after
+        // our own rotations and promotions; lose it and those moves go unseen in an open tab.
+        var field = Drawer?.Fields.SingleOrDefault(f => f.Name == "shouldRefreshFilter");
+        Assert.That(field, Is.Not.Null, "TabBillsDrawer.shouldRefreshFilter no longer exists");
+        Assert.That(field!.IsStatic && field.IsPublic, Is.True);
+        Assert.That(field.FieldType.FullName, Is.EqualTo("System.Boolean"));
+    }
 }

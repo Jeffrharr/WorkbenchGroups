@@ -271,10 +271,6 @@ tab-replacing mod gets audited with the second question.
 
 Still open from this item:
 
-- **No "do this next" button in Nice Bill Tab's rows.** The state is drawn (outline plus a red arrow
-  on the thumbnail) and a drag above the marked order clears it, but setting a mark needs vanilla's
-  tab. A button needs a slot their row does not have; the likeliest home is our own strip above
-  their list, acting on their selected bill, which means reading their `Selections` by reflection.
 - **Their `NoOneCanDo` state is unreachable in their 1.6 release** — declared, coloured, never
   returned. We repaint it grey (red means "do this next" in both tabs); verified only with the
   status forced by a test step.

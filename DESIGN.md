@@ -341,11 +341,28 @@ a floor; the marker's red is lifted to 0.4, the strength their own red had, sinc
 rows are only 0.2. Against the previous capture: the marked row's stripes change over 31% of the
 row (median ΔE 9.5 over those pixels), the blocked row's over 32% (11.9), the other rows not at
 all, and vanilla's tab not at all. Not the word: at Tiny, PRIORITY is wider
-than the thumbnail, and the first capture had its plate cutting "Cook" to "ok". There is **no
-button** there — their top line runs through a variable number of other mods' buttons, the
-thumbnail is their pause button and would take the click, and right-click opens their own menu —
-so a marker is set from vanilla's tab (their tab has a toggle for it) and cleared in theirs by
-dragging an order above it. Showing the state at least means a mark is never silently invisible.
+than the thumbnail, and the first capture had its plate cutting "Cook" to "ok".
+
+The **button** to set the mark is not on their row, because their row has no free spot that stays
+put: the top line runs leftwards from their delete button through a variable number of other mods'
+buttons, the bottom line is their repeat controls, the thumbnail is their pause button and would
+take the click first, and right-click opens their own menu. It sits instead in the strip we already
+reserve above their list, next to the ordering button, and acts on **their selection**: select a
+row (one click, which highlights it), press "Do next"; press again ("Unmark", in the marker's red)
+to clear it, the same toggle as vanilla's row button through the same `NextOrder.Toggle`. Their
+selection is a list, and shift-click adds to it, so the pure `SelectedBillRule` refuses both "none
+selected" and "several selected" rather than guessing, and the tooltip says why. Before and after
+a press: the button changes over its whole face (median ΔE 32.1) and the marked row moves to the
+head and turns red.
+
+That first live press also found a real bug in the compat layer: **Nice Bill Tab draws from a
+cached, filtered copy of the list** and rebuilds it only when its own code flags
+`shouldRefreshFilter` — a delete, a drop, a paste, typing a search. The press marked the order and
+moved it to the head, and their tab went on drawing it third. The same was true of every round-robin
+rotation with their tab open. Every deliberate move of ours already ends in
+`RoundRobin.RecordLastKnownOrder`, so that bumps `OwnBillListMoves.Version`, and the left-pane
+prefix sets their flag when the version has changed since it last looked — one integer compare per
+draw.
 
 The red also lands on top of a third signal. The overshoot guard makes a fully-claimed bill
 report "would not start now" and vanilla paints any such bill pink, so a marked bill under work
@@ -579,6 +596,7 @@ All probes pass:
 | `accent_states` | Every row state on one frame of vanilla's tab: marked + next up, worked here (twice), worked at the other bench. Probes read `AccentFor` itself, so the probes and the pixels answer from one function. The green "worked here" state is on screen for the first time — `WbgSimulateBillStart` gained `atBench`, which points the held job's `targetA` at a bench. Against the pre-`WashFor` build: **median ΔE 10.1 over the marked row** (violet mix → red), every other row's fill unchanged. |
 | `nicebilltab_accents` | The same states in Nice Bill Tab's tab, plus a bill that is both worked here and "nobody can do this" (grey). That state is **forced** (`WbgForceNiceBillTabStatus`): Nice Bill Tab 1.6 declares and colours `NoOneCanDo` but never returns it, so no player can see that state today; the capture shows what our layer does if they ever do. Against the previous build, measured over the pixels that changed (a whole-row median is 0 on these rows, because the stripes cover a quarter of the row and the rest is untouched): the red row loses our green edge bar (0.8% of the row, median ΔE 81.5), the elsewhere row gets its own stripes back (25% of the row, median ΔE 3.9 — visible at a glance, but a tint change, not a new element), and the marked row gains its outline and arrow (8.4%, median ΔE 82.0). |
 | `marker_foreign_reorder` | Where "do this next" meets foreign-reorder detection, graded on probes with a negative control. **A:** mark under round robin, start a job, unmark, switch to in-order — the authored order comes back (head slot 0), not the marker's promotion. **B:** in-order, Nice Bill Tab's tab open, a bare `Remove`/`Insert` puts another order above the marked one (`WbgMoveBillDirect`, standing in for their drag) — the mark clears. Against the build before the fix, both key probes fail (head stays 2; mark stays 2). |
+| `nicebilltab_do_next_button` | The "do this next" button above Nice Bill Tab's list. Selection goes through their own `SelectBill`, the press through the button's handler. Refuses with nothing selected and with two selected (the step asserts the press did nothing, and the probe that nothing is marked); marks the single selected order, which moves to the head; a second press unmarks it. Captures before and after the press: the button's face changes at median ΔE 32.1, the marked row at 30.3 as it moves up and turns red; 0.05% of the rest of the frame moves. |
 | `shared_save_integrity` | **Zero duplicate load-ID warnings** on save, and sharing intact afterwards. |
 | `do_this_next` | Marking promotes to the head; the marked order survives a job start that would otherwise rotate it away; marking a second order replaces the first; clicking the marked one again clears it; deleting the marked order leaves nothing marked. 13 probes. Two identically-framed captures of the second bench's tab, before and after marking — **median ΔE 11.4 over the marked row**, against 0.06% of the map changing at all. |
 | `reload_roundtrip_save` + `reload_roundtrip_load` | The save/reload round-trip, run as two game loads by `Tests/run_roundtrip.sh` (kept in `Tests/Scenarios/roundtrip/`, since it needs a fixture the rest of the suite does not) — phase A links, adds three bills, switches on round robin and saves; the script copies that save into the harness's `Fixtures/`; phase B boots with it and only probes. **After the load the two benches' `billStack` fields are the same object**, all three bills are visible from the second bench, and the group is still in round robin. |
