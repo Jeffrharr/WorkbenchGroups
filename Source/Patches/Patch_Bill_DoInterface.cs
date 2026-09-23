@@ -660,11 +660,15 @@ namespace WorkbenchGroups.Patches
         /// </summary>
         private static readonly Color BatchPlate = new Color(0.08f, 0.08f, 0.08f, 0.9f);
 
+        /// <summary>Tall enough for a Tiny digit's glyph, not its line height.</summary>
+        private const float BatchPlateHeight = 12f;
+
         /// <summary>
         /// The count, right-aligned to the chain's right edge and bottom-aligned to one pixel below
         /// it. Right, not further: the suspend button starts at <c>xMax - 76</c>, two pixels past
         /// the chain. Down, not further: <c>Bill_Production</c>'s widget row starts at
-        /// <c>y + 29</c>, and this ends at <c>y + 26</c>.
+        /// <c>y + 29</c>, and this ends at <c>y + 26</c>. It grows upwards over the chain, which
+        /// is what a stack count on an item icon does too.
         /// </summary>
         private static void DrawBatchBadge(Rect icon, int size)
         {
@@ -673,15 +677,20 @@ namespace WorkbenchGroups.Patches
 
             Text.Font = GameFont.Tiny;
             string text = "WBG_BatchBadge".Translate(size);
+            // The plate and the label are two rects on purpose. The first capture drew the label
+            // into a 13px box and Tiny clipped it to the bottom half of "3x"; the second sized the
+            // box to Tiny's full line height, which is legible but covers nearly the whole chain,
+            // because a line height is mostly empty space above and below the glyphs. So the plate
+            // hugs the glyphs and the label gets its full line height, centred on the plate.
             Vector2 textSize = Text.CalcSize(text);
             float width = textSize.x + 2f;
-            float height = 13f;
 
-            Rect badge = new Rect(icon.xMax - width, icon.yMax + 1f - height, width, height);
-            Widgets.DrawBoxSolid(badge, BatchPlate);
+            Rect plate = new Rect(icon.xMax - width, icon.yMax + 1f - BatchPlateHeight, width, BatchPlateHeight);
+            Widgets.DrawBoxSolid(plate, BatchPlate);
 
+            Rect label = new Rect(plate.x, plate.center.y - textSize.y / 2f, plate.width, textSize.y);
             Text.Anchor = TextAnchor.MiddleCenter;
-            Widgets.Label(badge, text);
+            Widgets.Label(label, text);
 
             Text.Anchor = previousAnchor;
             Text.Font = previousFont;
