@@ -119,4 +119,122 @@ namespace WorkbenchGroups.Probes
             return new StepOutcome();
         }
     }
+
+    /// <summary>Switches the tracked group's "one of each first" layer through the shipped call.</summary>
+    public sealed class WbgSetOneEachFirstStep : IStepSpec, IStepAction
+    {
+        public const string TypeName = "WbgSetOneEachFirst";
+
+        public string Type => TypeName;
+
+        public ScenarioResidue Residue => ScenarioResidue.NewMap;
+
+        public bool LiveCallable => false;
+
+        public bool TryValidate(IReadOnlyDictionary<string, string> args, out string error)
+        {
+            error = null;
+            if (!args.TryGetValue("on", out string on) || !bool.TryParse(on, out _))
+            {
+                error = "WbgSetOneEachFirst requires 'on' (true or false)";
+                return false;
+            }
+
+            return true;
+        }
+
+        public StepOutcome Execute(IReadOnlyDictionary<string, string> args, StepContext ctx)
+        {
+            CompBillGroup anchorComp = WbgNextOrderSupport.AnchorComp(ctx.Map);
+            if (anchorComp == null)
+            {
+                return StepOutcome.Fail("WbgSetOneEachFirst: no anchor comp — run WbgLinkBenches first");
+            }
+
+            RoundRobin.SetOneEachFirst(anchorComp, bool.Parse(args["on"]));
+            return new StepOutcome();
+        }
+    }
+
+    /// <summary>
+    /// Runs vanilla's bill work giver against one tracked bench, as a pawn's work scan would.
+    ///
+    /// The stock-aware sort lives in a Harmony prefix on <c>WorkGiver_DoBill.JobOnThing</c>, and
+    /// a scenario's clock is paused, so no pawn ever scans on its own between steps. Calling the
+    /// work giver's public entry point puts the shipped prefix in the path exactly as a scan
+    /// would; calling our sort directly would test the sort and skip the patch. The job it
+    /// returns is discarded — whether there are ingredients is not the question.
+    /// </summary>
+    public sealed class WbgScanBenchStep : IStepSpec, IStepAction
+    {
+        public const string TypeName = "WbgScanBench";
+
+        public string Type => TypeName;
+
+        public ScenarioResidue Residue => ScenarioResidue.NewMap;
+
+        public bool LiveCallable => false;
+
+        public bool TryValidate(IReadOnlyDictionary<string, string> args, out string error)
+        {
+            error = null;
+            if (args.TryGetValue("index", out string index) && !int.TryParse(index, out _))
+            {
+                error = $"WbgScanBench: 'index' is not a number (got '{index}')";
+                return false;
+            }
+
+            return true;
+        }
+
+        public StepOutcome Execute(IReadOnlyDictionary<string, string> args, StepContext ctx)
+        {
+            int index = args.TryGetValue("index", out string raw) ? int.Parse(raw) : 0;
+            if (index < 0 || index >= WbgTestState.Benches.Count)
+            {
+                return StepOutcome.Fail(
+                    $"WbgScanBench: bench {index} out of range, {WbgTestState.Benches.Count} tracked");
+            }
+
+            Building_WorkTable bench = WbgTestState.Benches[index];
+            WorkGiver_DoBill giver = GiverFor(bench);
+            if (giver == null)
+            {
+                return StepOutcome.Fail($"WbgScanBench: no bill work giver serves {bench.def.defName}");
+            }
+
+            Pawn pawn = null;
+            foreach (Pawn candidate in ctx.Map.mapPawns.FreeColonistsSpawned)
+            {
+                if (!candidate.Downed)
+                {
+                    pawn = candidate;
+                    break;
+                }
+            }
+
+            if (pawn == null)
+            {
+                return StepOutcome.Fail("WbgScanBench: no colonist to scan with");
+            }
+
+            giver.JobOnThing(pawn, bench, forced: false);
+            return new StepOutcome();
+        }
+
+        private static WorkGiver_DoBill GiverFor(Building_WorkTable bench)
+        {
+            foreach (WorkGiverDef def in DefDatabase<WorkGiverDef>.AllDefsListForReading)
+            {
+                if (def.Worker is WorkGiver_DoBill giver
+                    && def.fixedBillGiverDefs != null
+                    && def.fixedBillGiverDefs.Contains(bench.def))
+                {
+                    return giver;
+                }
+            }
+
+            return null;
+        }
+    }
 }

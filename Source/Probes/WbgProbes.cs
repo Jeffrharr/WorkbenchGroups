@@ -96,7 +96,7 @@ namespace WorkbenchGroups.Probes
     public sealed class OrderingModeProbe : IProbe, IProbeMetadata
     {
         public string Name => "wbg_ordering_mode";
-        public string Description => "0 = in order (vanilla), 1 = round robin.";
+        public string Description => "0 = in order (vanilla), 1 = round robin, 2 = balance. Plus 10 when \"one of each first\" is on.";
         public string Unit => "enum";
 
         public float Read(Map map)
@@ -109,7 +109,8 @@ namespace WorkbenchGroups.Probes
                 return -1f;
             }
 
-            return comp.Ordering == OrderingMode.RoundRobin ? 1f : 0f;
+            // The saved enum value itself, so a scenario asserts what is written to the save.
+            return (int)comp.Ordering + (comp.OneEachFirst ? 10f : 0f);
         }
     }
 
@@ -214,7 +215,7 @@ namespace WorkbenchGroups.Probes
     public sealed class MemberReportedModeProbe : IProbe, IProbeMetadata
     {
         public string Name => "wbg_member_reported_mode";
-        public string Description => "Ordering mode named in the last tracked bench's inspect pane: 0 = in order, 1 = round robin.";
+        public string Description => "Ordering mode named in the last tracked bench's inspect pane: 0 = in order, 1 = round robin, 2 = balance.";
         public string Unit => "enum";
 
         public float Read(Map map)
@@ -234,6 +235,11 @@ namespace WorkbenchGroups.Probes
             if (inspect.Contains("WBG_ModeRoundRobin".Translate()))
             {
                 return 1f;
+            }
+
+            if (inspect.Contains("WBG_ModeBalance".Translate()))
+            {
+                return 2f;
             }
 
             return inspect.Contains("WBG_ModeInOrder".Translate()) ? 0f : -1f;

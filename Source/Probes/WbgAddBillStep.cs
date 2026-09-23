@@ -47,6 +47,19 @@ namespace WorkbenchGroups.Probes
                 return false;
             }
 
+            if (args.TryGetValue("repeat", out string repeat)
+                && repeat != "count" && repeat != "target" && repeat != "forever")
+            {
+                error = $"WbgAddBill: 'repeat' must be count, target or forever (got '{repeat}')";
+                return false;
+            }
+
+            if (args.TryGetValue("slowCount", out string slow) && !bool.TryParse(slow, out _))
+            {
+                error = $"WbgAddBill: 'slowCount' is not a boolean (got '{slow}')";
+                return false;
+            }
+
             return true;
         }
 
@@ -72,8 +85,35 @@ namespace WorkbenchGroups.Probes
             }
 
             Bill_Production bill = (Bill_Production)recipe.MakeNewBill();
-            bill.repeatMode = BillRepeatModeDefOf.RepeatCount;
-            bill.repeatCount = args.TryGetValue("count", out string raw) ? int.Parse(raw) : 1;
+            int count = args.TryGetValue("count", out string raw) ? int.Parse(raw) : 1;
+            string repeat = args.TryGetValue("repeat", out string rawRepeat) ? rawRepeat : "count";
+            if (repeat == "target")
+            {
+                // "Do until you have X", with X taken from 'count'. The stock-aware ordering is
+                // defined over these orders, so a scenario has to be able to make one.
+                bill.repeatMode = BillRepeatModeDefOf.TargetCount;
+                bill.targetCount = count;
+            }
+            else if (repeat == "forever")
+            {
+                bill.repeatMode = BillRepeatModeDefOf.Forever;
+            }
+            else
+            {
+                bill.repeatMode = BillRepeatModeDefOf.RepeatCount;
+                bill.repeatCount = count;
+            }
+
+            // Forces vanilla's slow product count. The fast path reads the map's resource
+            // counter, which only sees things in stockpiles, so meals a scenario drops on bare
+            // floor would count as zero. "Include equipped" is a filter setting with no effect on
+            // meals but it takes CountProducts off the fast path, onto the map-wide walk that
+            // counts everything spawned — which is also the path whose cost the count cache
+            // exists to bound, so a profiled run with this set measures the expensive case.
+            if (args.TryGetValue("slowCount", out string slow) && bool.Parse(slow))
+            {
+                bill.includeEquipped = true;
+            }
 
             // Optional rename, which is what lets a scenario build the *tightest* row on purpose
             // rather than hoping the longest vanilla recipe name happens to be long enough. Row
