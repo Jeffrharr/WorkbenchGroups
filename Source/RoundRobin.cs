@@ -18,6 +18,10 @@ namespace WorkbenchGroups
     /// The rotation happens at job start, not on completion. On completion looks right with one
     /// worker and is wrong with several: three pawns scanning together all see the same bill at
     /// the head, all take it, and it only rotates afterwards — "three of A, then three of B".
+    ///
+    /// The one exception is an order that leaves an unfinished item behind, which rotates when
+    /// its unit is finished. Rotated at start, an interrupted item would sit behind every other
+    /// order until its turn came round again. See <see cref="UnfinishedItemPolicy.RotatesAt"/>.
     /// </summary>
     public static class RoundRobin
     {
@@ -26,6 +30,27 @@ namespace WorkbenchGroups
         /// overwhelmingly common case of an ungrouped bench or an in-order group.
         /// </summary>
         public static void NotifyBillStarted(Bill bill)
+        {
+            if (UnfinishedItemPolicy.RotatesAt(RotationMoment.JobStart, bill is Bill_ProductionWithUft))
+            {
+                RotateToTail(bill);
+            }
+        }
+
+        /// <summary>
+        /// Called when a unit of a bill is finished. Only orders that leave an unfinished item
+        /// behind rotate here; see <see cref="UnfinishedItemPolicy.RotatesAt"/> for why they wait
+        /// until the unit is done instead of rotating at job start.
+        /// </summary>
+        public static void NotifyUnitCompleted(Bill bill)
+        {
+            if (UnfinishedItemPolicy.RotatesAt(RotationMoment.UnitCompleted, bill is Bill_ProductionWithUft))
+            {
+                RotateToTail(bill);
+            }
+        }
+
+        private static void RotateToTail(Bill bill)
         {
             BillStack stack = bill?.billStack;
             if (stack == null || !(stack.billGiver is Building_WorkTable anchor))

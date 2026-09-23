@@ -435,6 +435,22 @@ public class ApiCompatibilityTests
         Assert.That(property.PropertyType.FullName, Is.EqualTo("Verse.Thing"));
     }
 
+    [Test]
+    public void IterationCompleted_ReachesBillProduction_ForUnfinishedItemBills()
+    {
+        // Round robin rotates unfinished-item orders from a postfix on
+        // Bill_Production.Notify_IterationCompleted. That only fires for Bill_ProductionWithUft
+        // because its override calls base. If that call goes, those orders never rotate at all.
+        var method = MethodOf("RimWorld.Bill_Production", "Notify_IterationCompleted", 2);
+        Assert.That(method, Is.Not.Null, "Bill_Production.Notify_IterationCompleted(2 args) is gone");
+
+        var overrideMethod = MethodOf("RimWorld.Bill_ProductionWithUft", "Notify_IterationCompleted", 2);
+        Assert.That(overrideMethod?.Body.Instructions.Any(i =>
+                i.Operand is MethodReference m && m.Name == "Notify_IterationCompleted"
+                && m.DeclaringType.FullName == "RimWorld.Bill_Production"),
+            Is.True, "Bill_ProductionWithUft.Notify_IterationCompleted no longer calls base");
+    }
+
     private static bool IsFieldLoad(Mono.Cecil.Cil.Instruction instruction, string type, string name) =>
         instruction.OpCode.Code == Mono.Cecil.Cil.Code.Ldfld
         && instruction.Operand is FieldReference field
