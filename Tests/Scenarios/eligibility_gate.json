@@ -6,11 +6,11 @@
       "comment": "The rule reads recipes rather than naming classes, so the only real check is against the loaded def database — an offline test cannot know that apparel recipes carry an unfinished thing. The step logs a full census of work-table defs and their verdicts. Absent DLC defs are skipped and reported, not failed.",
       "type": "WbgAssertEligibility",
       "args": {
-        "comment_groupable": "Benches with at least one shareable recipe. The last four are the interesting ones: mostly-unshareable crafting benches that the strict 'every recipe' form of this rule would have excluded, taking the whole crafting half of the game with them.",
-        "groupable": "ElectricStove, FueledStove, TableStonecutter, ElectricSmelter, ButcherSpot, TableButcher, DrugLab, BiofuelRefinery, Brewery, Campfire, TableMachining, ElectricSmithy, FueledSmithy, ElectricTailoringBench",
+        "comment_groupable": "Benches with at least one shareable recipe. The last three make nothing but unfinished-item orders (census: 0 plain recipes each), so they were excluded until those orders became shareable (issue #11); they are here to prove the gate opened for them. SubcoreEncoder's only recipe, SubcoreBasic, is an unfinished-item recipe, not a forming one.",
+        "groupable": "ElectricStove, FueledStove, TableStonecutter, ElectricSmelter, ButcherSpot, TableButcher, DrugLab, BiofuelRefinery, Brewery, Campfire, TableMachining, ElectricSmithy, FueledSmithy, ElectricTailoringBench, HandTailoringBench, TableSculpting, FabricationBench, SubcoreEncoder",
 
-        "comment_notGroupable": "Benches where every recipe would make a bill we cannot share, so a group could never hold anything. SubcoreEncoder is the one this rule fixes: its thingClass is a plain Building_WorkTable, so the old class whitelist let it in and would have put a Bill_Autonomous in a shared stack.",
-        "notGroupable": "MechGestator, LargeMechGestator, SubcoreEncoder, TableSculpting, FabricationBench"
+        "comment_notGroupable": "The negative path: benches where every recipe makes a bill that casts the list's owner back to its own bench class — mech gestation. These share the code path with the unfinished-item benches now, so this is what shows the refusal still holds.",
+        "notGroupable": "MechGestator, LargeMechGestator"
       }
     }
   ]
