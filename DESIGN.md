@@ -625,7 +625,7 @@ rather than re-derived.
 
 Implemented, unit-tested, and exercised in a running game.
 
-**Offline** (`./test.sh`, 173 tests): the pure core in `Source/Core/`, plus Mono.Cecil checks
+**Offline** (`./test.sh`, 245 tests): the pure core in `Source/Core/`, plus Mono.Cecil checks
 on every vanilla member the patches depend on — including the four `RecipeDef` members the
 eligibility gate reads, and the set of `Bill` types `BillUtility.MakeNewBill` constructs. That
 second one is the gate's real dependency: a fifth branch added there would let a new bill type
