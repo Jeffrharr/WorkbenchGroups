@@ -51,9 +51,15 @@ namespace WorkbenchGroups
         /// </summary>
         public static bool RedirectInstalled { get; private set; }
 
-        public static void NotifyRedirectInstalled()
+        /// <summary>
+        /// Records the transpiler's latest verdict. Latest rather than "ever succeeded", because
+        /// Harmony re-runs every transpiler on a method whenever any mod patches it again; if a
+        /// later pass had to fall back to the original IL, the redirect is gone from the live
+        /// method and the flag must say so.
+        /// </summary>
+        public static void NotifyRedirect(bool installed)
         {
-            RedirectInstalled = true;
+            RedirectInstalled = installed;
         }
 
         public static void BeginScan(Building_WorkTable bench)
@@ -103,14 +109,24 @@ namespace WorkbenchGroups
         /// </summary>
         public static Building_WorkTable ParkedGroupBench(UnfinishedThing uft)
         {
-            Bill_ProductionWithUft bill = uft?.BoundBill;
+            // Unspawned means carried or in a container, where Position is stale and "resting
+            // beside a bench" has no meaning.
+            if (uft == null || !uft.Spawned)
+            {
+                return null;
+            }
+
+            Bill_ProductionWithUft bill = uft.BoundBill;
             if (!(bill?.billStack?.billGiver is Building_WorkTable owner) || !owner.Spawned)
             {
                 return null;
             }
 
+            // IsGrouped first: a hash lookup, where RosterOf starts with GetComp. This runs from
+            // the haul placement validator once per candidate cell, and almost every unfinished
+            // item on a map belongs to a bench in no group at all.
             BillGroupIndex index = BillGroupIndex.For(owner.Map);
-            if (index == null)
+            if (index == null || !index.IsGrouped(owner))
             {
                 return null;
             }

@@ -1,4 +1,5 @@
 using Mono.Cecil;
+using WorkbenchGroups.Core;
 
 namespace WorkbenchGroups.Tests;
 
@@ -356,8 +357,89 @@ public class ApiCompatibilityTests
     public void BillProductionWithUft_StillExists()
     {
         Assert.That(GetType("RimWorld.Bill_ProductionWithUft"), Is.Not.Null,
-            "Bill_ProductionWithUft no longer exists — revisit the unshareable-bill rule");
+            "Bill_ProductionWithUft no longer exists — revisit the shareable-bill rule");
     }
+
+    // --- Unfinished-item sharing (Patch_WorkGiver_DoBill_FinishUftJob and friends) ---
+    // The transpiler is only as safe as this list. It fails closed at runtime, but a failure here
+    // names the cause before anyone loads a save.
+
+    [TestCase("RimWorld.Bill", "billStack", "RimWorld.BillStack")]
+    [TestCase("RimWorld.BillStack", "billGiver", "RimWorld.IBillGiver")]
+    public void TheTwoReadsTheTranspilerMatches_AreStillFields(string type, string name, string fieldType)
+    {
+        // The transpiler matches ldfld instructions. Turn either into a property and the IL
+        // becomes a callvirt, the match count drops to zero, and the redirect silently falls back.
+        var field = GetType(type)?.Fields.SingleOrDefault(f => f.Name == name);
+
+        Assert.That(field, Is.Not.Null, $"{type}.{name} is no longer a field");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo(fieldType));
+    }
+
+    [Test]
+    public void FinishUftJob_KeepsItsNameAndSignature()
+    {
+        var method = MethodOf("RimWorld.WorkGiver_DoBill", "FinishUftJob", 3);
+
+        Assert.That(method, Is.Not.Null, "WorkGiver_DoBill.FinishUftJob(3 args) no longer exists");
+        Assert.That(method!.IsStatic, Is.True, "FinishUftJob is no longer static");
+        Assert.That(method.Parameters.Select(p => p.ParameterType.FullName), Is.EqualTo(new[]
+        {
+            "Verse.Pawn", "Verse.UnfinishedThing", "RimWorld.Bill_ProductionWithUft",
+        }));
+        Assert.That(method.ReturnType.FullName, Is.EqualTo("Verse.AI.Job"));
+    }
+
+    [Test]
+    public void FinishUftJob_ReadsTheBillGiverExactlyAsOftenAsTheTranspilerExpects()
+    {
+        // Runs the transpiler's own matcher over the real IL. If this count moves, the transpiler
+        // will refuse to apply at runtime; this test says so before a player finds out.
+        var method = MethodOf("RimWorld.WorkGiver_DoBill", "FinishUftJob", 3);
+        Assert.That(method, Is.Not.Null);
+
+        var starts = IlPairRewrite.FindPairs(
+            method!.Body.Instructions,
+            i => IsFieldLoad(i, "RimWorld.Bill", "billStack"),
+            i => IsFieldLoad(i, "RimWorld.BillStack", "billGiver"));
+
+        Assert.That(starts.Count, Is.EqualTo(IlPairRewrite.ExpectedFinishUftJobMatches),
+            "FinishUftJob changed shape — re-derive Patch_WorkGiver_DoBill_FinishUftJob");
+    }
+
+    [Test]
+    public void HaulAIUtility_PawnCanAutomaticallyHaulFast_NewTemp_StillExists()
+    {
+        // The postfix binds the parameter named "t". Both other entry points funnel through this
+        // one; if that changes, the parked-item guard covers only some haulers.
+        var method = MethodOf("Verse.AI.HaulAIUtility", "PawnCanAutomaticallyHaulFast_NewTemp", 4);
+
+        Assert.That(method, Is.Not.Null, "HaulAIUtility.PawnCanAutomaticallyHaulFast_NewTemp(4 args) is gone");
+        Assert.That(method!.Parameters[1].Name, Is.EqualTo("t"));
+        Assert.That(method.ReturnType.FullName, Is.EqualTo("System.Boolean"));
+
+        var fast = MethodOf("Verse.AI.HaulAIUtility", "PawnCanAutomaticallyHaulFast", 3);
+        Assert.That(fast?.Body.Instructions.Any(i =>
+                i.Operand is MethodReference m && m.Name == "PawnCanAutomaticallyHaulFast_NewTemp"),
+            Is.True, "PawnCanAutomaticallyHaulFast no longer funnels through _NewTemp");
+    }
+
+    [Test]
+    public void UnfinishedThing_BoundWorkTable_IsStillAThingProperty()
+    {
+        var property = GetType("Verse.UnfinishedThing")?.Properties
+            .SingleOrDefault(p => p.Name == "BoundWorkTable");
+
+        Assert.That(property, Is.Not.Null, "UnfinishedThing.BoundWorkTable no longer exists");
+        Assert.That(property!.GetMethod, Is.Not.Null);
+        Assert.That(property.PropertyType.FullName, Is.EqualTo("Verse.Thing"));
+    }
+
+    private static bool IsFieldLoad(Mono.Cecil.Cil.Instruction instruction, string type, string name) =>
+        instruction.OpCode.Code == Mono.Cecil.Cil.Code.Ldfld
+        && instruction.Operand is FieldReference field
+        && field.Name == name
+        && field.DeclaringType.FullName == type;
 
     [TestCase("PostMapInit")]
     [TestCase("PreSwapMap")]
