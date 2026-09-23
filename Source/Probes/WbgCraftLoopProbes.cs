@@ -254,4 +254,27 @@ namespace WorkbenchGroups.Probes
             return control.Spawned && control.IsInValidStorage() ? 1f : 0f;
         }
     }
+
+    /// <summary>
+    /// Which queued order the crafter is working, by the slot the scenario queued it in. With
+    /// <c>wbg_head_bill_slot</c> this shows round robin resuming an interrupted item before
+    /// starting the next order.
+    /// </summary>
+    public sealed class CrafterBillSlotProbe : IProbe, IProbeMetadata
+    {
+        public string Name => "wbg_crafter_bill_slot";
+        public string Description => "Queued slot of the bill on the crafter's current job, -1 not a scenario bill, -2 no bill job.";
+        public string Unit => "slot";
+
+        public float Read(Map map)
+        {
+            Bill bill = WbgTestState.Crafter?.CurJob?.bill;
+            if (bill == null)
+            {
+                return WbgCraftLoopSupport.Missing;
+            }
+
+            return WbgTestState.Bills.IndexOf(bill as Bill_Production);
+        }
+    }
 }
