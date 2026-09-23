@@ -327,8 +327,10 @@ mechanism: "do this next", "at least N of each first" and "balance by shortfall"
 shared list by an urgency key and differ only in the key. **§1 "do this next" is now built**
 (see `DESIGN.md`, *"Do this next" promotes, it does not force*), and so is **§2 batched round
 robin** (*Batched round robin is a cadence, not an ordering*), together with the snapshot widening
-below. What remains is §3 stock-aware ordering and the group-level "one each first" toggle that
-rides on it.
+below, and **§3 stock-aware ordering** — Balance and the "one of each first" toggle (*Stock-aware
+ordering is one sort, run before each scan*). What remains open from the issue is Nice Bill Tab
+parity for all of it (§2e above) and a per-bill floor, which the comparator already takes but no UI
+sets.
 
 Kept as a numbered section here rather than left in the issue because §1 settled several
 questions the issue listed as open, and the next agent should not re-open them:
@@ -357,10 +359,8 @@ What §3 inherits, and what it changes:
   **§3 makes that one cheap** — it has to cache per-bill product counts anyway, so finishing the
   rule there is a few lines on top of the cache and should happen in the same change.
 - **The canonical-order snapshot is widened** (`Core/OrderingTransition`): it snapshots entering
-  any list-rearranging mode and restores on the way back to "in order", so `Balance` needs no edit
-  to `SetOrdering` beyond existing. What §3 still owes is its own re-promotion of the marked order
-  *after every sort*, since a re-sort is a rearrangement the restore path never sees — the
-  comparator's `priorityTier` 0 is where that falls out.
+  any list-rearranging state — including "in order" with the floor on — and restores on the way
+  back. The marked order is the sort's top tier, so every re-sort re-promotes it.
 - **§2's batch control is on the chain icon, not under it.** The count is a corner badge on the
   chain and the chain is the button. Nothing new was placed on a row's second line.
 

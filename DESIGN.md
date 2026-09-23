@@ -125,6 +125,81 @@ robin, and the badge is left off at a batch of one so an unbatched group looks e
 The badge stays inside the chain's right edge (suspend begins two pixels further right) and ends at
 `y + 26`, above the widget row at `y + 29`.
 
+## Stock-aware ordering is one sort, run before each scan
+
+Issue #8's finding was that "do this next", "at least one of each first" and "balance by
+shortfall" are one mechanism — sort the shared list by how badly each order needs attention —
+differing only in the key. So they are one comparator (`Core/UrgencyOrder`), a tiered key:
+
+| Tier | Key | Inert when |
+|---|---|---|
+| 1 | the marked "do this next" order first | nothing is marked |
+| 2 | countable and short of the floor first | "one of each first" is off (floor 0) |
+| 3 | Balance only: stock / target, emptiest first; orders without a target after every one that has one | the mode is not Balance |
+| 4 | base index, then input position | — |
+
+**Balance is an appended `OrderingMode` value (2); "one of each first" is a flag.** The flag is a
+layer over any mode — "one of each, then my own order" and "one of each, then balance" are both
+things a player means — so making it a mode would have needed a value per combination, doubling the
+save format's surface for one bit. Only "do until you have X" orders get a Balance ratio, because
+vanilla refuses that repeat mode on a bill whose products it cannot count; everything else sorts
+after them. An uncountable order (vanilla's `CanCountProducts` false) is never "short".
+
+**The base index is the authored position, except under round robin.** Under "in order" with the
+floor on, that is what lets a lifted order drop back to *where the player put it* once it has its
+one, rather than staying first forever; under Balance it makes ties come out in the player's order.
+Under round robin the rotation is the state, so the current position is the base, or every sort
+would undo every rotation.
+
+**Counts include work already underway** — one iteration's output per pawn on the bill — for the
+same reason the overshoot guard does. Stock still reads zero for the whole of a craft, so without
+this the next idle pawn would start a second shirt, which is precisely what "one of each first"
+exists to prevent. A marked "do until you have X" order is judged on stock alone, though: it is
+done when the items exist, not when someone has started the last one.
+
+### Why the sort runs in the scan prefix, not at job start
+
+Round robin and the marker mutate the list at the event that changes their answer — a job start, a
+click — so they cost nothing on the scan path. Stock is not like that: it moves at craft
+completion, hauling and consumption, none of them job starts. A pawn finishing a shirt at t=2000
+leaves the next scan looking at t=0 data. So the sort runs in a `WorkGiver_DoBill.JobOnThing`
+prefix — a sibling patch class to the ingredient-mute one, since the two share nothing but the
+method — and vanilla then walks the re-sorted list top-down as always. Selection is still not
+patched.
+
+It is bounded two ways, because that prefix runs per bench per pawn per work scan and vanilla's
+`CountProducts` is a map-wide walk for any bill with a quality, hit-point, zone or stuff filter:
+
+- A group sorts at most once per 60 ticks, and each bill's count is reused for the same window
+  (`Core/CountFreshness`).
+- A job starting or ending on one of the group's bills marks the group dirty and drops that bill's
+  count at once. Those are the two events after which the old order is most likely wrong — a start
+  adds an in-flight claim and an end is usually a product arriving — so they do not wait out the
+  clock. Hauling and eating are what the one-second lag is left to cover, and a second is far finer
+  than they move.
+
+A permutation that changes nothing is not applied, so a settled list is never mutated. The marked
+order is tier 1, so every sort re-promotes it — the re-promotion any list-rearranging mode owes the
+marker, obtained from the key instead of a second pass.
+
+### Balance owns the order
+
+Balance re-sorts before every scan, so an arrow click would be undone within a second. Rather than
+arrows that work just long enough to look broken, a prefix on `BillStack.Reorder` refuses the move
+for a grouped list in Balance, and the row postfix greys the arrow column with a tooltip saying how
+to get manual ordering back. The existing `Reorder` postfix skips a refused call (`__runOriginal`),
+since resnapshotting there would bake Balance's computed order in as the player's.
+
+The "one of each first" layer does *not* lock the arrows: under "in order" it only lifts the few
+short orders, and a drag among the rest is the player re-authoring their order as usual.
+
+### "Do until you have X" now clears its marker
+
+The one clearing case §1 deferred. The marker's check runs on the drawing path, once per visible
+row per frame, so it only ever *reads* the count cache — it never counts. The scan prefix keeps a
+marked target order's count filled even in a group that does not sort (one bill, once per window),
+so the answer is at most a second old, and until the first count lands the marker simply stays.
+
 ## "Do this next" promotes, it does not force
 
 A button on each bill row moves that order to the head of the group's shared list and marks it
@@ -170,7 +245,7 @@ what "finished" means here.
 |---|---|---|
 | Do X times | `repeatCount` hits 0 | Clears itself |
 | Do forever | There is none | **Stays marked until the player unmarks it** |
-| Do until you have X | Map-wide stock reaches the target | Stays marked; see below |
+| Do until you have X | Map-wide stock reaches the target | Clears itself, from the count cache; see below |
 
 **A "do forever" order staying priority forever is the right answer, not a shortfall.** An order
 that says "do this forever" has no completion to wait for, so there is no moment at which
@@ -178,12 +253,11 @@ clearing the marker would be correct — and staying put is what the player gets
 where an order moved to the top of the list stays there until they move it. The tooltip says so
 in those terms rather than apologising for it.
 
-"Do until you have X" is the one deferred case. It does finish, but only
+"Do until you have X" was deferred when the marker shipped. It does finish, but only
 `RecipeWorkerCounter.CountProducts` can say when — a map-wide walk of every haulable thing for
 any bill carrying a quality, hit-point or stuff filter — and this test is consulted on the
-bill-drawing path, once per visible row per frame. Calling it there would put the mod's most
-expensive possible call in its hottest loop. It becomes nearly free once the stock-aware ordering
-in issue #8 §3 lands, since that has to cache those counts anyway.
+bill-drawing path, once per visible row per frame. It is now answered from the stock-aware
+ordering's count cache, read-only, as described in *"Do until you have X" now clears its marker*.
 
 The repeat-mode check in `BillOrdering.IsNextOrderSpent` is load-bearing rather than defensive.
 `repeatCount` is a live field that keeps whatever value it last held, so a bill that ran a count
@@ -471,9 +545,9 @@ own delete button, a few pixels to the right, genuinely does shrink the list mid
   paused. This is the honest cost of promoting rather than forcing, and the only place it is
   explained is the button's tooltip — there is no message, because a message would fire on every
   work scan.
-- **A marked "do until you have X" order never un-marks itself.** The one deferred case in the
-  table above; it needs a product count this mod cannot afford on the drawing path. "Do forever"
-  is *not* in this list — staying marked is the intended answer there, not a defect.
+- **Balance and "one of each first" lag stock by up to a second** for changes that are not a job
+  starting or ending on the bill — hauling, eating, another mod spawning items. A deliberate trade
+  for bounding `CountProducts` on the scan path.
 
 ## Cross-mod notes
 
@@ -647,6 +721,7 @@ All probes pass:
 | `nicebilltab_do_next_button` | The "do this next" button above Nice Bill Tab's list. Selection goes through their own `SelectBill`, the press through the button's handler. Refuses with nothing selected and with two selected (the step asserts the press did nothing, and the probe that nothing is marked); marks the single selected order, which moves to the head; a second press unmarks it. Captures before and after the press: the button's face changes at median ΔE 32.1, the marked row at 30.3 as it moves up and turns red; 0.05% of the rest of the frame moves. |
 | `shared_save_integrity` | **Zero duplicate load-ID warnings** on save, and sharing intact afterwards. |
 | `batched_round_robin` | A batch of three holds the head for two starts and rotates on the third; unbatched bills in the same group still rotate every start; the count restarts on rotation and on a size change; a marked order never rotates, batch or not; "in order" ignores batches; switching back to "in order" restores the authored order after the rotations. The whole list is asserted after every start (`wbg_bill_order`), not just its head. A/B capture of the second bench's tab with and without the `3x` badge. |
+| `stock_aware_ordering` | Through the shipped `JobOnThing` prefix (`WbgScanBench` calls vanilla's work giver): "in order" never sorts; Balance sorts fine 2/10 above simple 8/10 above a do-forever order, but only on the next scan; the up arrow is refused under Balance; round robin → "in order" restores the order authored *before* Balance; a scan inside the 60-tick window keeps the cached order after stock changes and one past it re-sorts; the marker stays first through a re-sort; "one of each first" under "in order" lifts the one order with none in stock, and a single start drops it back to its authored place on the very next scan (the in-flight term and the dirty flag); a marked "do until you have X" order clears once stock reaches X in a group that does not sort, only after the window. A/B capture of the greyed arrows against round robin's live ones on the same list: **median CIELAB dE 72.6 over the arrow glyphs**, the rest of the rows unchanged (0 of 65,148 px). |
 | `marked_and_worked` | The three-signal row issue #8 left unphotographed: a marked order that is also being worked and fully claimed, framed directly above a row that is worked but not marked. Both rows measure the green edge at exactly `(115, 204, 115)`, so the red outline does not tint it; the red outline, the green edge and vanilla's dimmed "would not start now" text are all distinct in one frame. (An earlier `do_this_next_worked` capture read the edge as a beige `(158, 151, 136)`; the new frame does not reproduce that, and it is not what the code draws.) |
 | `do_this_next` | Marking promotes to the head; the marked order survives a job start that would otherwise rotate it away; marking a second order replaces the first; clicking the marked one again clears it; deleting the marked order leaves nothing marked. 13 probes. Two identically-framed captures of the second bench's tab, before and after marking — **median ΔE 11.4 over the marked row**, against 0.06% of the map changing at all. |
 | `reload_roundtrip_save` + `reload_roundtrip_load` | The save/reload round-trip, run as two game loads by `Tests/run_roundtrip.sh` (kept in `Tests/Scenarios/roundtrip/`, since it needs a fixture the rest of the suite does not) — phase A links, adds three bills, switches on round robin and saves; the script copies that save into the harness's `Fixtures/`; phase B boots with it and only probes. **After the load the two benches' `billStack` fields are the same object**, all three bills are visible from the second bench, and the group is still in round robin. |
