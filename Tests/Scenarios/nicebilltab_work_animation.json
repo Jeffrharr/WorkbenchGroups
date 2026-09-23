@@ -16,7 +16,10 @@
     { "type": "WbgLinkBenches", "args": { "def": "ElectricStove", "limit": "2", "mode": "InOrder" } },
     { "type": "Probe", "args": { "probeName": "wbg_group_size", "expectedValue": "2", "tolerance": "0" } },
 
-    { "type": "WbgAddBill", "args": { "recipe": "CookMealSimple", "count": "5" } },
+    {
+      "comment": "Count 1, so once the other bench's pawn claims it the overshoot guard says it would not start again. Otherwise it is also 'next up', which outranks 'worked elsewhere' and paints it blue.",
+      "type": "WbgAddBill", "args": { "recipe": "CookMealSimple", "count": "1" }
+    },
     { "type": "WbgAddBill", "args": { "recipe": "CookMealFine", "count": "5" } },
     { "type": "WbgAddBill", "args": { "recipe": "CookMealSurvival", "count": "5" } },
     { "type": "WbgAddBill", "args": { "recipe": "CookMealLavish", "count": "3" } },
