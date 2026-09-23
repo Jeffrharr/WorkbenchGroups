@@ -400,6 +400,28 @@ Nice Bill Tab's it is their row stripes, recoloured. Work elsewhere gets no fill
 first capture of Nice Bill Tab rows had it repainting their stripes the same green as work here,
 and the two rows could not be told apart.
 
+**Motion is a third channel, and in Nice Bill Tab it belongs to "worked here".** Their tab scrolls
+the stripes of exactly one row: the first bill in the list that any free colonist on the map has
+as `CurJob.bill` (`CheckAnyOneDoWork`, refreshed on bench change and every 30 ticks). On an
+ungrouped bench that is the bill being made there. In a group the list is shared, so it is
+whichever worked bill sits highest — often the other bench's — while the bill being made at the
+open bench sits still. `RowMotionRule` (pure, tested) moves the scroll to every row that is
+`WorkedHere` and off every other row, using the same classification as the colours, so motion and
+hue can't disagree about a row. It works by handing their `DrawBillPreview` a different status
+(written back through Harmony's `__args`), not by zeroing the scroll offset. Their status also sets
+the stripe strength (0.4 moving, 0.2 still) and greys a Doned row's text, so a row we stop drops to
+exactly what their own `GetBillStatus` would have called it, and a row we start gains their full
+"being worked" look. Mech-gestation bills (`Bill_Autonomous`) animate from their own state and are
+left alone.
+
+Worked elsewhere does not move: it is already the weakest claim, speaking through the edge bar
+alone, and a scrolling row is the loudest thing on their tab. Next up does not move either, since
+nothing is happening to it yet. The grey `NoOneCanDo` row stays still even with a pawn on it,
+because scrolling grey would say "stuck" and "progressing" at once. **The marked order being made
+here does move, in red.** The marker owns the hue and the accent owns motion (and the edge bar), so
+red still means only "do this next" and the scroll adds "and it's being made here". Turning it
+green would take red off the one row it exists for; holding it still would hide the work.
+
 ### Which order was asked for next
 
 The marked order gets a red wash, a red outline around the whole row, a PRIORITY badge, and its

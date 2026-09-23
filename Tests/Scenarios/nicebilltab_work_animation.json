@@ -1,0 +1,90 @@
+{
+  "name": "nicebilltab_work_animation",
+  "saveFile": "minimal_colony.rws",
+
+  "comment": "Which Nice Bill Tab row scrolls. Their tab animates the first bill anyone on the map is working; in a group that can be the other bench's. Phase 1 puts the other bench's bill ABOVE the one worked here, so on main the wrong row moves. Phase 2 adds the marked order worked here (moves, red) and a NoOneCanDo row worked here (still, grey). A still frame can't show motion, so each phase takes a burst of frames ~40 rendered frames apart; the PR diffs consecutive frames per row. In-order so job starts don't rotate rows.",
+  "requiredMods": { "Andromeda.NiceBillTab": "3520130671" },
+
+  "steps": [
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "14", "height": "10" } },
+    { "type": "PlaceThings", "args": { "def": "ElectricStove", "layout": "cells", "cells": "-3,0; 3,0", "rot": "South" } },
+    {
+      "comment": "Four bills held at once needs four colonists; the fixture has one.",
+      "type": "SpawnPawn", "args": { "kind": "Colonist", "faction": "player", "count": "3", "offset": "-2,-3" }
+    },
+    { "type": "WbgClaimBenches", "args": { "def": "ElectricStove" } },
+    { "type": "WbgLinkBenches", "args": { "def": "ElectricStove", "limit": "2", "mode": "InOrder" } },
+    { "type": "Probe", "args": { "probeName": "wbg_group_size", "expectedValue": "2", "tolerance": "0" } },
+
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealSimple", "count": "5" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealFine", "count": "5" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealSurvival", "count": "5" } },
+    { "type": "WbgAddBill", "args": { "recipe": "CookMealLavish", "count": "3" } },
+
+    {
+      "comment": "Slot 0 at bench 0 (the OTHER bench), highest in the list: what their tab picks to animate.",
+      "type": "WbgSimulateBillStart", "args": { "slot": "0", "atBench": "0", "requireDistinct": "true" }
+    },
+    {
+      "comment": "Slot 1 at bench 1, whose tab is open: 'worked here', below it.",
+      "type": "WbgSimulateBillStart", "args": { "slot": "1", "atBench": "1", "requireDistinct": "true" }
+    },
+
+    {
+      "comment": "Selecting the other bench, then this one, changes their LastSelTable, which is what makes them re-pick the row to animate (otherwise only every 30 ticks, and the game is paused).",
+      "type": "WbgFocusBench", "args": { "def": "ElectricStove", "index": "0" }
+    },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "WbgFocusBench", "args": { "def": "ElectricStove", "index": "1" } },
+    { "type": "Probe", "args": { "probeName": "wbg_worked_elsewhere_slot", "expectedValue": "0", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "wbg_worked_here_slot", "expectedValue": "1", "tolerance": "0" } },
+    { "type": "LookAt", "args": { "zoom": "12" } },
+    { "type": "Wait", "args": { "frames": "20" } },
+    {
+      "comment": "First capture of a scenario carries the HUD regardless of hideUi, so this one is spent.",
+      "type": "Screenshot", "args": { "fileName": "nbt_motion_warmup.png", "hideUi": "false" }
+    },
+    { "type": "Wait", "args": { "frames": "10" } },
+    { "type": "Screenshot", "args": { "fileName": "nbt_motion_p1_f0.png", "hideUi": "false" } },
+    { "type": "Wait", "args": { "frames": "40" } },
+    { "type": "Screenshot", "args": { "fileName": "nbt_motion_p1_f1.png", "hideUi": "false" } },
+    { "type": "Wait", "args": { "frames": "40" } },
+    { "type": "Screenshot", "args": { "fileName": "nbt_motion_p1_f2.png", "hideUi": "false" } },
+    { "type": "Wait", "args": { "frames": "40" } },
+    { "type": "Screenshot", "args": { "fileName": "nbt_motion_p1_f3.png", "hideUi": "false" } },
+    { "type": "Wait", "args": { "frames": "40" } },
+    { "type": "Screenshot", "args": { "fileName": "nbt_motion_p1_f4.png", "hideUi": "false" } },
+    { "type": "Wait", "args": { "frames": "40" } },
+    { "type": "Screenshot", "args": { "fileName": "nbt_motion_p1_f5.png", "hideUi": "false" } },
+
+    {
+      "comment": "Marking slot 2 puts it at the head. Worked here too, so it is the marked row that is being made here: decided to move, in red.",
+      "type": "WbgMarkNextOrder", "args": { "slot": "2" }
+    },
+    { "type": "WbgSimulateBillStart", "args": { "slot": "2", "atBench": "1", "requireDistinct": "true" } },
+    {
+      "comment": "Worked here AND NoOneCanDo (forced; their 1.6 never produces it): grey, and still.",
+      "type": "WbgSimulateBillStart", "args": { "slot": "3", "atBench": "1", "requireDistinct": "true" }
+    },
+    { "type": "WbgForceNiceBillTabStatus", "args": { "slot": "3" } },
+
+    { "type": "WbgFocusBench", "args": { "def": "ElectricStove", "index": "0" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "WbgFocusBench", "args": { "def": "ElectricStove", "index": "1" } },
+    { "type": "Probe", "args": { "probeName": "wbg_next_order_slot", "expectedValue": "2", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "wbg_head_bill_slot", "expectedValue": "2", "tolerance": "0" } },
+    { "type": "LookAt", "args": { "zoom": "12" } },
+    { "type": "Wait", "args": { "frames": "20" } },
+    { "type": "Screenshot", "args": { "fileName": "nbt_motion_p2_f0.png", "hideUi": "false" } },
+    { "type": "Wait", "args": { "frames": "40" } },
+    { "type": "Screenshot", "args": { "fileName": "nbt_motion_p2_f1.png", "hideUi": "false" } },
+    { "type": "Wait", "args": { "frames": "40" } },
+    { "type": "Screenshot", "args": { "fileName": "nbt_motion_p2_f2.png", "hideUi": "false" } },
+    { "type": "Wait", "args": { "frames": "40" } },
+    { "type": "Screenshot", "args": { "fileName": "nbt_motion_p2_f3.png", "hideUi": "false" } },
+    { "type": "Wait", "args": { "frames": "40" } },
+    { "type": "Screenshot", "args": { "fileName": "nbt_motion_p2_f4.png", "hideUi": "false" } },
+    { "type": "Wait", "args": { "frames": "40" } },
+    { "type": "Screenshot", "args": { "fileName": "nbt_motion_p2_f5.png", "hideUi": "false" } }
+  ]
+}
