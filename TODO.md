@@ -281,20 +281,17 @@ the main checkout, does not find it, and draws `BadTex` — a magenta X that loo
 wrong ContentFinder path. Install the whole versioned folder instead:
 `--install <worktree>/1.6:<main-checkout>/1.6`.
 
-#### Issue #8's ordering features in Nice Bill Tab — logged gaps
+#### Issue #8's ordering features in Nice Bill Tab
 
-Per the parity rule (`CLAUDE.md` on the `nicebilltab-compat` branch, PR #13): these features were
-built on `main` before that branch's compatibility layer (`Compat/NiceBillTabCompat`,
-`Core/OrderDivergence`, `RoundRobin.RecordLastKnownOrder`) existed there, so they could not be
-wired into it in the same change. What each one needs once both are merged:
+Under the parity rule in `CLAUDE.md`. For batched round robin:
 
-- **§2 batch control (the corner count on the chain, and the chain as its button).** Drawn from
-  inside `DrawLinkChain`, so Nice Bill Tab's compact rows should inherit it on their
-  thumbnail-corner chain for free. Unverified: whether a click on that corner reaches us before
-  their row selection or drag does, and whether a 16px chain leaves room for the count. Needs a
-  `nicebilltab_*` capture.
-- **§2 batching's list moves** need nothing: a batch that holds the head does not move the list,
-  and the rotation path already records its result.
+- **List moves: covered.** A batch that holds the head goes through the same branch as a no-op
+  rotation, which records the baseline, and a completed batch rotates through the recorded path.
+  `RecordLastKnownOrder` also bumps `OwnBillListMoves`, so their cached list refreshes.
+- **The batch count is drawn on their rows**, on the thumbnail-corner chain, but **it cannot be
+  set there**. That thumbnail is their pause button, so a click must stay theirs; the tooltip says
+  to use the standard tab. The same limit as the "do next" button, for the same reason.
+  Unverified on screen in their tab: whether the count fits on a 16px chain.
 
 ### 2f. Conflicting mods, generally
 
@@ -370,8 +367,7 @@ What §3 inherits, and what it changes:
 The marked-and-worked row §1 left unphotographed is now captured (`marked_and_worked`): red
 outline, green edge and vanilla's dimmed "would not start now" all read distinctly on one row.
 
-**Nice Bill Tab parity for §2 is not done yet** — the compatibility layer it needs is in PR #13,
-not on `main`. The gaps are logged in §2e, *Issue #8's ordering features in Nice Bill Tab*.
+**Nice Bill Tab parity for §2** is in §2e, *Issue #8's ordering features in Nice Bill Tab*.
 
 **Read the layout note in `DESIGN.md` before drawing anything new on a bill row.** §2's proposed
 `(2x)` batch label at `(xMax - 100, y + 25)` is on top of `Bill_Production.DoConfigInterface`'s
