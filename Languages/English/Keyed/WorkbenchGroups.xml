@@ -11,7 +11,7 @@
   <WBG_CommandSelectLinkedDesc>Select every station sharing this list of work orders.</WBG_CommandSelectLinkedDesc>
 
   <WBG_CommandOrdering>Order: {0}</WBG_CommandOrdering>
-  <WBG_CommandOrderingDesc>Choose how this group works through its shared list of orders.\n\nIn order — the standard behaviour. The list is worked top-down, finishing the top order first.\n\nRound robin — one item from each order in turn. Orders visibly move to the bottom of the list as they are worked, so the top of the list is always what happens next. Switching back to "in order" restores the arrangement you had.</WBG_CommandOrderingDesc>
+  <WBG_CommandOrderingDesc>Choose how this group works through its shared list of orders.\n\nIn order — the standard behaviour. The list is worked top-down, finishing the top order first.\n\nRound robin — one item from each order in turn. Orders visibly move to the bottom of the list as they are worked, so the top of the list is always what happens next. Click an order's chain icon to make several of it before moving on. Switching back to "in order" restores the arrangement you had.</WBG_CommandOrderingDesc>
   <WBG_OrderingCurrent>{0} (current)</WBG_OrderingCurrent>
 
   <WBG_ModeInOrder>in order</WBG_ModeInOrder>
@@ -32,6 +32,13 @@
   <WBG_BillBeingWorked>Being worked right now by {0}.</WBG_BillBeingWorked>
   <WBG_BillNextUp>Next up at this station.</WBG_BillNextUp>
   <WBG_BillSharedTip>Shared with all {0} stations in this group.</WBG_BillSharedTip>
+  <WBG_BillBatchTip>Round robin makes {0} of this order before moving on to the next one. Batches save a walk, a haul and an ingredient search on every item after the first.
+
+Click to change how many.</WBG_BillBatchTip>
+  <WBG_BillBatchTipReadOnly>Round robin makes {0} of this order before moving on to the next one. Change it from the chain icon in the standard bills tab.</WBG_BillBatchTipReadOnly>
+  <WBG_BatchBadge>{0}x</WBG_BatchBadge>
+  <WBG_BatchOptionOne>One at a time</WBG_BatchOptionOne>
+  <WBG_BatchOption>{0} at a time</WBG_BatchOption>
   <WBG_BillPinnedTip>Only some stations in this group can make this. It will only be worked at the ones that can.</WBG_BillPinnedTip>
 
   <WBG_NextOrderBadge>PRIORITY</WBG_NextOrderBadge>
