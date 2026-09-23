@@ -54,7 +54,8 @@ facts, so they don't have to be re-derived from the decompile:
   member deep-saves the same bills and the save is corrupt on load.
 - Round robin rotates at **job start**, never on iteration completion.
 - Eligibility is decided from **recipes, not bench classes**: a bench is groupable if at
-  least one of its recipes would make a plain `Bill_Production`
+  least one of its recipes would make a plain `Bill_Production` or a `Bill_ProductionWithUft`
+  (the latter since issue #11 — the unfinished item follows the bench the pawn walked to)
   (`BillUtility.MakeNewBill` picks the subclass from the `RecipeDef` alone). "At least one"
   and not "every one" — the strict form excludes every crafting bench in the game, which
   the `eligibility_gate` census measures. The per-bill half is enforced by
@@ -117,7 +118,7 @@ the bench the pawn walked to — and only the unfinished-thing path routes throu
 | `CanLink` refusal | Becomes per-bill? | Why |
 |---|---|---|
 | Mismatched recipe sets | **Yes** | Ingredient search, job target and work stats are all `giver`-relative on the normal path, so a plain `Bill_Production` owned by the anchor and worked at another member is already correct. Only the *selection* needs gating. |
-| Unshareable (UFT) bill | **No** | `FinishUftJob` resolves the unfinished item through `bill.billStack.billGiver` (WorkGiver_DoBill.cs:175,180), so a UFT bill in a shared stack is broken *however* it was selected. Pinning it changes who starts it, not where its unfinished item is looked for. Would need the bill to keep its own stack, and `ITab_Bills` reads one `billStack` object, so there is nowhere to put it. Stays a hard refusal. |
+| Unshareable (UFT) bill | **Moot — no longer a refusal** | Originally "stays a hard refusal": `FinishUftJob` resolves the unfinished item through `bill.billStack.billGiver` (WorkGiver_DoBill.cs:175,180), so a UFT bill in a shared stack looked broken *however* it was selected, and the fix seemed to need a stack per bill. That skipped the cheap fix — answer that one read with the bench the pawn walked to, as vanilla's plain path already does. Issue #11 did exactly that (`UnfinishedItemSharing`, see DESIGN.md "Unfinished-item orders follow the pawn, not the list"), so UFT bills now join shared lists and this refusal only fires if the redirect failed to install. What remains unshareable is the mech bill types, which are about the bench class, not selection. |
 | Over `BillStack.MaxCount` (15) | **No** | A vanilla cap on the stack itself, not a property of any one bill. |
 | Non-groupable bench class | **No** | About whether anchoring is safe at all, not about sharing. |
 | Different maps | **No** | The anchor must be a spawned bench on the same map. |
@@ -209,8 +210,9 @@ reinstalled on spawn), and a group falling to one member (dissolves, survivor ke
 ### 2b. Negative tests — every refusal path
 
 `BillGroupOps.CanLink` has five refusal branches and none is exercised. Two newer refusals
-belong in the same suite: `Patch_BillStack_AddBill` rejecting an unfinished-thing bill added
-to a grouped bench (unit-tested predicate, never seen in play), and `BillGroupOps.Link`'s
+belong in the same suite: `Patch_BillStack_AddBill` rejecting an unshareable bill added
+to a grouped bench (now seen in play for mech bills — `uft_shared_resume` feeds `Lifter` and
+`ResurrectLightMech` into a shared list and asserts both bounce), and `BillGroupOps.Link`'s
 rollback, which was written against a throw we cannot reproduce on demand and has never run.
 A step that links a bench whose comp is rigged to throw would exercise it. Each needs a probe
 exposing the refusal reason (add `wbg_last_refusal_code`, an int, set by a
@@ -218,7 +220,7 @@ exposing the refusal reason (add `wbg_last_refusal_code`, an int, set by a
 
 - mismatched recipe sets (link a stove to a tailoring bench)
 - combined bills over `BillStack.MaxCount` (15)
-- a bench holding an unshareable bill (a UFT recipe)
+- a bench holding an unshareable bill (a mech recipe — UFT recipes are shareable since #11)
 - a non-groupable bench class
 - benches on different maps
 
@@ -229,8 +231,16 @@ say what the rewrite changed.
 
 ### 2c. The real craft loop
 
-Currently the behavioural scenarios hold a `Wait` job rather than `DoBill`, so "pawns walk
-to the right bench and make the right number of things" is unverified. To do it properly:
+**Partly done, for one order.** `uft_shared_resume` (issue #11) runs a real `DoBill` loop:
+spawned colonists with only one work type each, cloth on the floor, a pawn starting an
+unfinished-item order at one bench, drafted away, resuming at the other, and finishing the
+product. Its steps (`WbgAssignRoles`, `WbgOccupyBench`, `WbgDraft`, `WbgSpawnStack`,
+`WbgMakeStockpile`) are reusable for the round-robin claim below. `uft_shared_resume_control`
+withholds the fix with `WbgWithholdPatches` and asserts vanilla's outcome — the pattern for any
+future behavioural A/B. Run the control alone: Harmony state outlives a scenario.
+
+The other behavioural scenarios still hold a `Wait` job rather than `DoBill`, so "pawns walk
+to the right bench and make the right number of things" is unverified for plain orders. To do it properly:
 `SpawnPawn` several colonists, place a powered stove pair plus ingredients, then
 `FastForward` and count products. Expect this to be flaky against the shared fixture —
 budget time for a leaner purpose-built fixture, and see the harness's own `Fixtures/README.md`.
@@ -280,6 +290,14 @@ and nothing else.** A texture added in a worktree is not in the overlay, so the 
 the main checkout, does not find it, and draws `BadTex` — a magenta X that looks exactly like a
 wrong ContentFinder path. Install the whole versioned folder instead:
 `--install <worktree>/1.6:<main-checkout>/1.6`.
+
+**Unfinished-item orders (issue #11) and Nice Bill Tab.** Their paste button
+(`TabBillsDrawer.InsertBill`) skips `BillStack.AddBill`. The reflective guard on it (PR #13)
+calls `Patch_BillStack_AddBill.AllowInto`, which asks `BenchEligibility.IsShareableBill`. So a
+pasted unfinished-item order is admitted or refused by the same rule, including the fail-closed
+`RedirectInstalled` check, and nothing extra is needed. When the two branches meet, reword that
+guard's log text: it still says a pasted unfinished-item order "would strand on the anchor bench".
+The redirect, haul guard and `BoundWorkTable` fixes never touch a bills tab.
 
 ### 2f. Conflicting mods, generally
 
