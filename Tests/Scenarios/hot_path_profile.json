@@ -48,7 +48,12 @@
     {
       "comment": "A ceiling, not an expectation. Set well above what the run measures so it fails on a regression rather than on noise; tighten once a few runs have shown the spread.",
       "type": "ProfileAssert",
-      "args": { "table": "hotpaths", "label": "Patch_WorkGiver_DoBill_JobOnThing", "metric": "avgMsPerFrame", "max": "1.0" }
+      "args": { "table": "hotpaths", "label": "Patch_WorkGiver_DoBill_JobOnThing:Prefix", "metric": "avgMsPerFrame", "max": "1.0" }
+    },
+    {
+      "comment": "':Prefix' in both labels because the analyzer matches by substring and the urgency sort's sibling patch class starts with the same name — the bare class name matched both rows and the assert refused to pick one.",
+      "type": "ProfileAssert",
+      "args": { "table": "hotpaths", "label": "Patch_WorkGiver_DoBill_JobOnThing_Urgency:Prefix", "metric": "avgMsPerFrame", "max": "1.0" }
     }
   ]
 }

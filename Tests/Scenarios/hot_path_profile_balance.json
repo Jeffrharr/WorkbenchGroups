@@ -132,10 +132,11 @@
       }
     },
     {
+      "comment": "Labels include ':Prefix' because the analyzer matches by substring, and the urgency sort's sibling patch class shares this one's name as a prefix — the bare class name matched both rows and the assert refused to pick.",
       "type": "ProfileAssert",
       "args": {
         "table": "hotpaths_balance",
-        "label": "Patch_WorkGiver_DoBill_JobOnThing",
+        "label": "Patch_WorkGiver_DoBill_JobOnThing:Prefix",
         "metric": "avgMsPerFrame",
         "max": "1.0"
       }
@@ -144,7 +145,7 @@
       "type": "ProfileAssert",
       "args": {
         "table": "hotpaths_balance",
-        "label": "Patch_WorkGiver_DoBill_JobOnThing_Urgency",
+        "label": "Patch_WorkGiver_DoBill_JobOnThing_Urgency:Prefix",
         "metric": "avgMsPerFrame",
         "max": "1.0"
       }
