@@ -99,8 +99,8 @@ namespace WorkbenchGroups.Compat
             {
                 Log.Error(
                     "[Workbench Groups] Failed to patch Nice Bill Tab; its bill tab will not show "
-                    + "shared-order annotations, and orders that leave an unfinished item behind "
-                    + "can be pasted into a linked group through its paste button. Group "
+                    + "shared-order annotations, and orders that cannot be shared (mech gestation, "
+                    + "forming) can be pasted into a linked group through its paste button. Group "
                     + "behaviour is otherwise unaffected. " + e);
             }
         }
@@ -122,15 +122,18 @@ namespace WorkbenchGroups.Compat
         /// <summary>
         /// Closes the hole Nice Bill Tab's clipboard paste opens in the unshareable-bill gate.
         ///
-        /// <c>Patch_BillStack_AddBill</c> keeps bills that leave an unfinished item behind — guns,
-        /// armour, sculptures — out of a group's shared list, because such a bill's
-        /// <c>UnfinishedThing</c> resolves through <c>billStack.billGiver</c> and would strand on
-        /// whichever bench happens to be the anchor. It does that as a prefix on <c>AddBill</c>,
-        /// on the stated grounds that every route into a bill list passes through it.
+        /// <c>Patch_BillStack_AddBill</c> keeps unshareable bills out of a group's shared list: the
+        /// mech bill types, which cast the list's owner back to their own bench class, and — only
+        /// if the <c>FinishUftJob</c> redirect failed to install — orders that leave an unfinished
+        /// item behind. The rule is <c>BenchEligibility.IsShareableBill</c>, fail-closed check
+        /// included. It is applied as a prefix on <c>AddBill</c>, on the stated grounds that every
+        /// route into a bill list passes through it.
         ///
         /// Nice Bill Tab's <c>InsertBill</c> does not. It assigns <c>bill.billStack</c> and calls
-        /// <c>Bills.Insert</c> directly, so a player could paste an assault rifle bill straight
-        /// into a linked machining table's list — the exact case the mod documents as refused.
+        /// <c>Bills.Insert</c> directly, so without this guard a pasted bill would skip the rule.
+        /// Routing it through the same <c>AllowInto</c> means a pasted order is admitted or refused
+        /// exactly as the vanilla tab would — an unfinished-item order goes in while the redirect
+        /// is installed, and is refused if it is not.
         /// Its *other* paste route, <c>InsertBillBizarre</c>, pops the tail, calls <c>AddBill</c>
         /// and pushes back, so that one stays gated by the existing prefix and is left alone.
         /// </summary>
@@ -141,9 +144,9 @@ namespace WorkbenchGroups.Compat
             {
                 Log.Warning(
                     "[Workbench Groups] Nice Bill Tab is present but TabBillsDrawer.InsertBill was "
-                    + "not found, so its paste route cannot be gated. An order that leaves an "
-                    + "unfinished item behind could be pasted into a linked group, where it would "
-                    + "strand on the anchor bench.");
+                    + "not found, so its paste route cannot be gated. An order that cannot be "
+                    + "shared (mech gestation, or an unfinished-item order if the resume redirect "
+                    + "failed to install) could be pasted into a linked group.");
                 return;
             }
 
