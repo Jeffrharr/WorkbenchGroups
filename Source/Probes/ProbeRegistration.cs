@@ -41,6 +41,7 @@ namespace WorkbenchGroups.Probes
             ProbeRegistry.Register(new UftSameItemProbe());
             ProbeRegistry.Register(new FirstBillRemainingProbe());
             ProbeRegistry.Register(new ControlInStorageProbe());
+            ProbeRegistry.Register(new CrafterBillSlotProbe());
         }
     }
 }

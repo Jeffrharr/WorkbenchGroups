@@ -3,7 +3,7 @@
   "saveFile": "minimal_colony.rws",
   "steps": [
     {
-      "comment": "Issue #11, live. A real craft loop — real pawns, real DoBill jobs, real ingredients — for an order that leaves an unfinished item behind, in a two-bench shared list. The bench roles in every probe are 0 = anchor (owns the list), 1 = member, -1 = neither, -2 = nothing to report.",
+      "comment": "Issue #11, live. A real craft loop — real pawns, real DoBill jobs, real ingredients — for an order that leaves an unfinished item behind, in a two-bench shared list. The bench roles in every probe are 0 = anchor (owns the list), 1 = member, -1 = neither, -2 = nothing to report. The resume rule under test: stay at the bench the item is parked at while it is usable, and move to a free linked bench only when it is not.",
       "type": "SetTime",
       "args": {
         "hour": "9"
@@ -181,6 +181,64 @@
     {
       "type": "WbgRememberUft",
       "args": {}
+    },
+    {
+      "comment": "Phase 2a: nothing is busy. Asked from the member, the real work giver still sends the pawn back to the anchor, because that is where the item is parked and the anchor is usable. The job should not move just because a different bench was scanned first.",
+      "type": "WbgOccupyBench",
+      "args": {
+        "which": "none"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_resume_target_at",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "WbgDraft",
+      "args": {
+        "drafted": "false"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_crafter_job_at",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_same_item",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_at",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "comment": "Interrupted again at the anchor. Now the anchor is the busy one, so phase 2b must move the job.",
+      "type": "WbgDraft",
+      "args": {
+        "drafted": "true"
+      }
     },
     {
       "type": "WbgOccupyBench",

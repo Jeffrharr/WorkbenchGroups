@@ -1,0 +1,229 @@
+{
+  "name": "uft_round_robin_resume",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "comment": "Round robin with two unfinished-item orders. The T-shirt (slot 0) is short. The duster (slot 1) takes far longer than the whole scenario, so it can never finish and rotate on its own, and the list order stays readable. What is under test: an order that leaves an item rotates when its unit is done, not when the job starts, so an interrupted shirt is resumed before the duster is begun.",
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "20",
+        "height": "20"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "HandTailoringBench",
+        "layout": "cells",
+        "cells": "-4,0; 4,0",
+        "rot": "North"
+      }
+    },
+    {
+      "type": "WbgClaimBenches",
+      "args": {
+        "def": "HandTailoringBench"
+      }
+    },
+    {
+      "type": "WbgLinkBenches",
+      "args": {
+        "def": "HandTailoringBench",
+        "limit": "2",
+        "mode": "RoundRobin"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_ordering_mode",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "WbgTryAddBill",
+      "args": {
+        "recipe": "Make_Apparel_BasicShirt",
+        "expect": "added"
+      }
+    },
+    {
+      "type": "WbgTryAddBill",
+      "args": {
+        "recipe": "Make_Apparel_Duster",
+        "expect": "added"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_head_bill_slot",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "WbgSpawnStack",
+      "args": {
+        "def": "Cloth",
+        "count": "75",
+        "cell": "0,-3"
+      }
+    },
+    {
+      "type": "WbgSpawnStack",
+      "args": {
+        "def": "Cloth",
+        "count": "75",
+        "cell": "1,-3"
+      }
+    },
+    {
+      "type": "WbgSpawnStack",
+      "args": {
+        "def": "Cloth",
+        "count": "75",
+        "cell": "-1,-3"
+      }
+    },
+    {
+      "type": "SpawnPawn",
+      "args": {
+        "kind": "Colonist",
+        "count": "4",
+        "faction": "player",
+        "offset": "-3,-9",
+        "spacing": "2"
+      }
+    },
+    {
+      "type": "WbgAssignRoles",
+      "args": {}
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "900"
+      }
+    },
+    {
+      "comment": "The crafter is making the shirt, and the shirt is still at the head. The old start-time rotation would read 1 here.",
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_crafter_bill_slot",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_count",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_head_bill_slot",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "WbgDraft",
+      "args": {
+        "drafted": "true"
+      }
+    },
+    {
+      "type": "WbgRememberUft",
+      "args": {}
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_head_bill_slot",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "comment": "Undrafted, the crafter's own think tree walks the list top-down, finds the shirt first, and resumes the same item. It does not start the duster.",
+      "type": "WbgDraft",
+      "args": {
+        "drafted": "false"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_crafter_bill_slot",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_same_item",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_head_bill_slot",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "WbgLogCrafter",
+      "args": {}
+    },
+    {
+      "comment": "The shirt is finished, so it rotates to the tail and the duster comes up. The count went down once, on completion (vanilla's own bookkeeping). What the crafter is doing at the end is not asserted: a randomly generated colonist is as likely to be on a recreation walk as at the duster, and the first run caught one on a walk.",
+      "type": "FastForward",
+      "args": {
+        "ticks": "10000"
+      }
+    },
+    {
+      "type": "WbgLogCrafter",
+      "args": {}
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_first_bill_remaining",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_head_bill_slot",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    }
+  ]
+}
