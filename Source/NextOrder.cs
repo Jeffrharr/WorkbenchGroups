@@ -85,7 +85,7 @@ namespace WorkbenchGroups
                 return null;
             }
 
-            if (IsSpent(bill))
+            if (IsSpent(anchorComp, bill))
             {
                 anchorComp.NextOrderBillId = null;
                 return null;
@@ -267,15 +267,31 @@ namespace WorkbenchGroups
         }
 
         /// <summary>
-        /// Whether the marked order has finished, in the only sense RimWorld can answer cheaply.
-        /// The rule and the reasons it cannot cover the other repeat modes are in
-        /// <see cref="BillOrdering.IsNextOrderSpent"/>.
+        /// Whether the marked order has finished.
+        ///
+        /// "Do X times" is answered from the live <c>repeatCount</c> — see
+        /// <see cref="BillOrdering.IsNextOrderSpent"/>. "Do until you have X" is answered from the
+        /// urgency sort's count cache, and only ever *read* from it here: this runs once per
+        /// visible row per frame, and a cache miss must never be the thing that triggers a
+        /// map-wide product walk. The cache is kept filled for a marked target order by the scan
+        /// prefix even in groups that do not sort, so the answer is at most a second old. Until
+        /// the first count lands the marker simply stays, which is the safe side.
         /// </summary>
-        private static bool IsSpent(Bill bill)
+        private static bool IsSpent(CompBillGroup anchorComp, Bill bill)
         {
-            return bill is Bill_Production production
-                   && BillOrdering.IsNextOrderSpent(
-                       BenchEligibility.RepeatModeOf(production), production.repeatCount);
+            if (!(bill is Bill_Production production))
+            {
+                return false;
+            }
+
+            RepeatModeCode mode = BenchEligibility.RepeatModeOf(production);
+            if (mode == RepeatModeCode.TargetCount)
+            {
+                bool known = UrgencySort.TryPeekCount(anchorComp, bill, out int stock);
+                return UrgencyOrder.IsTargetReached(known, stock, production.targetCount);
+            }
+
+            return BillOrdering.IsNextOrderSpent(mode, production.repeatCount);
         }
     }
 }

@@ -201,14 +201,13 @@ namespace WorkbenchGroups.Core
         /// marker would be the right thing to do — and leaving it set is what the player gets in
         /// vanilla anyway, where a forever order stays where they put it until they move it.
         ///
-        /// <see cref="RepeatModeCode.TargetCount"/> is the one deferred case. It does finish —
-        /// when map-wide stock reaches the target — but that can only be learned from
-        /// <c>RecipeWorkerCounter.CountProducts</c>, a map-wide walk of every haulable thing for
-        /// any bill carrying a quality, hit-point or stuff filter. This test is consulted on the
-        /// bill-drawing path, once per visible row per frame, so calling it here would put the
-        /// mod's most expensive possible call in its hottest loop. It becomes nearly free once
-        /// the stock-aware ordering in issue #8 §3 lands, since that has to cache those counts
-        /// anyway.
+        /// <see cref="RepeatModeCode.TargetCount"/> is not decided here. It finishes when
+        /// map-wide stock reaches the target, which only <c>RecipeWorkerCounter.CountProducts</c>
+        /// can say — a map-wide walk for any filtered bill, far too expensive for the drawing path
+        /// this is consulted on. The stock-aware ordering keeps a per-bill count cache anyway, so
+        /// that case is answered from it by <see cref="UrgencyOrder.IsTargetReached"/>; this
+        /// method keeps reporting it as not spent, which is what a caller with no count must
+        /// assume.
         ///
         /// The mode check is load-bearing rather than defensive. <c>repeatCount</c> is a live
         /// field that keeps whatever value it last held, so a bill that ran its count down to
