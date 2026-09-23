@@ -392,4 +392,54 @@ namespace WorkbenchGroups.Probes
             return digits;
         }
     }
+
+    /// <summary>
+    /// How many tracked benches are actually powered. A bench that is not makes vanilla's work
+    /// giver return before it walks a single bill, so a profile of an unpowered scene measures our
+    /// prefixes' guard clauses and nothing downstream — and it looks exactly like a healthy run.
+    /// </summary>
+    public sealed class BenchesPoweredProbe : IProbe, IProbeMetadata
+    {
+        public string Name => "wbg_benches_powered";
+        public string Description => "Tracked benches whose power comp reports PowerOn. Benches with no power comp count as powered.";
+        public string Unit => "benches";
+
+        public float Read(Map map)
+        {
+            int powered = 0;
+            foreach (Building_WorkTable bench in WbgTestState.Benches)
+            {
+                CompPowerTrader power = bench.GetComp<CompPowerTrader>();
+                if (power == null || power.PowerOn)
+                {
+                    powered++;
+                }
+            }
+
+            return powered;
+        }
+    }
+
+    /// <summary>
+    /// Pawns working any tracked bill right now. Read at the end of a profiled window, it is the
+    /// check that the window measured a colony that was actually cooking: a scene with no power,
+    /// no ingredients or no reachable stove runs every prefix and still reads zero here.
+    /// </summary>
+    public sealed class BillsInFlightProbe : IProbe, IProbeMetadata
+    {
+        public string Name => "wbg_bills_in_flight";
+        public string Description => "Sum of InFlightTracker counts over the scenario's queued bills.";
+        public string Unit => "pawns";
+
+        public float Read(Map map)
+        {
+            int total = 0;
+            foreach (Bill_Production bill in WbgTestState.Bills)
+            {
+                total += InFlightTracker.InFlight(bill);
+            }
+
+            return total;
+        }
+    }
 }

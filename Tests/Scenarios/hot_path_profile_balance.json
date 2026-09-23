@@ -38,6 +38,24 @@
       }
     },
     {
+      "comment": "The solar generator above is never wired, so every stove reported 'Not connected to power' and no one cooked: the prefixes ran, but vanilla's JobOnThing returned before walking a single bill and the stock never moved. Spotted by eye on the capture. Two toxifier generators (no fuel, 1400 W each, against six 350 W stoves and a night that zeroes the solar) and a conduit run along z=4, within vanilla's 6-cell connection range of every stove (a south run was tried and four of its cells sit on an unbuildable blocker in the fixture), fix it; wbg_benches_powered asserts it rather than trusting the layout.",
+      "type": "PlaceThings",
+      "args": {
+        "def": "ToxifierGenerator",
+        "layout": "cells",
+        "cells": "-4,6; 4,6",
+        "rot": "North"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "PowerConduit",
+        "layout": "cells",
+        "cells": "-9,4; -8,4; -7,4; -6,4; -5,4; -4,4; -3,4; -2,4; -1,4; 0,4; 1,4; 2,4; 3,4; 4,4; 5,4; 6,4; 7,4; 8,4; 9,4; 9,3; 9,2; 9,1; 9,0; 9,-1; 9,-2; 9,-3; 9,-4; -4,5; 4,5"
+      }
+    },
+    {
       "comment": "Without ingredients the bills are never startable: TryFindBestBillIngredients fails, sets nextTickToSearchForIngredients, and the work giver skips the bill for ten seconds. The first run of this scenario measured 26 ShouldDoNow calls in two seconds for exactly that reason — a table of near-zeroes that says nothing about the hot path.",
       "type": "PlaceThings",
       "args": {
@@ -148,6 +166,44 @@
         "label": "Patch_WorkGiver_DoBill_JobOnThing_Urgency:Prefix",
         "metric": "avgMsPerFrame",
         "max": "1.0"
+      }
+    },
+    {
+      "comment": "After the window: PowerOn is only set by a power-net tick, and the scenario is paused until Profile.",
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_benches_powered",
+        "expectedValue": "6",
+        "tolerance": "0"
+      }
+    },
+    {
+      "comment": "1 to 6 pawns on the group's bills, or the window measured an idle scene.",
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_bills_in_flight",
+        "expectedValue": "3.5",
+        "tolerance": "2.5"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "14"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "10"
+      }
+    },
+    {
+      "comment": "Evidence the scene worked rather than idled: pawns at powered stoves with meals on the floor.",
+      "type": "Screenshot",
+      "args": {
+        "fileName": "hot_path_balance_after.png",
+        "hideUi": "true"
       }
     }
   ]
