@@ -29,7 +29,6 @@ namespace WorkbenchGroups.Probes
             ProbeRegistry.Register(new AccentSlotProbe("wbg_next_up_slot", Core.BillAccent.NextUp));
             ProbeRegistry.Register(new BillOrderProbe());
             ProbeRegistry.Register(new BenchesPoweredProbe());
-            ProbeRegistry.Register(new BillsInFlightProbe());
         }
     }
 }

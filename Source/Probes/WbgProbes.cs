@@ -419,27 +419,4 @@ namespace WorkbenchGroups.Probes
             return powered;
         }
     }
-
-    /// <summary>
-    /// Pawns working any tracked bill right now. Read at the end of a profiled window, it is the
-    /// check that the window measured a colony that was actually cooking: a scene with no power,
-    /// no ingredients or no reachable stove runs every prefix and still reads zero here.
-    /// </summary>
-    public sealed class BillsInFlightProbe : IProbe, IProbeMetadata
-    {
-        public string Name => "wbg_bills_in_flight";
-        public string Description => "Sum of InFlightTracker counts over the scenario's queued bills.";
-        public string Unit => "pawns";
-
-        public float Read(Map map)
-        {
-            int total = 0;
-            foreach (Bill_Production bill in WbgTestState.Bills)
-            {
-                total += InFlightTracker.InFlight(bill);
-            }
-
-            return total;
-        }
-    }
 }

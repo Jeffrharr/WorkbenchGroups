@@ -5,7 +5,9 @@
     {
       "comment": "Mid-morning, so the window is not spent with the colony asleep. One powered run started in the evening and scanned the stoves four times in 900 frames: every prefix measured, nobody working.",
       "type": "SetTime",
-      "args": { "hour": "9" }
+      "args": {
+        "hour": "9"
+      }
     },
     {
       "comment": "hot_path_profile's scene exactly (six linked stoves, six colonists, potatoes on the floor, power), with the group switched to the stock-aware state instead of round robin. Run it beside hot_path_profile on the same build: the difference is the cost of the urgency sort and its count cache. Everything before the Profile step exists to make the work-giver actually run. Previous profiled windows were PAUSED for every frame, so the two patches that fire per bench per pawn per scan — the JobOnThing prefix and the ShouldDoNow postfix — were measured only as the bill tab redrawing them, which is not where they are hot.",
@@ -183,12 +185,13 @@
       }
     },
     {
-      "comment": "1 to 6 pawns on the group's bills, or the window measured an idle scene.",
-      "type": "Probe",
+      "comment": "The check that the window measured a colony that walked its bills, not one that idled: vanilla only calls ShouldDoNow while walking a bill list, so its call count is the direct measure. Idle runs (unpowered, or the colony asleep) read 6-11 here; working ones 37-147. An end-of-window in-flight snapshot was tried first and flaked — pawns between crafts read zero.",
+      "type": "ProfileAssert",
       "args": {
-        "probeName": "wbg_bills_in_flight",
-        "expectedValue": "3.5",
-        "tolerance": "2.5"
+        "table": "hotpaths_balance",
+        "label": "Patch_Bill_Production_ShouldDoNow:Postfix",
+        "metric": "calls",
+        "min": "20"
       }
     },
     {

@@ -76,9 +76,9 @@
       "args": { "probeName": "wbg_benches_powered", "expectedValue": "6", "tolerance": "0" }
     },
     {
-      "comment": "The check that the window measured a colony that was cooking: 1 to 6 pawns on the group's bills. Zero means the scene idled and the table above is guard clauses.",
-      "type": "Probe",
-      "args": { "probeName": "wbg_bills_in_flight", "expectedValue": "3.5", "tolerance": "2.5" }
+      "comment": "The check that the window measured a colony that walked its bills, not one that idled: vanilla only calls ShouldDoNow while walking a bill list, so its call count is the direct measure. Idle runs (unpowered, or the colony asleep) read 6-11 here; working ones 37-147. An end-of-window in-flight snapshot was tried first and flaked — pawns between crafts read zero.",
+      "type": "ProfileAssert",
+      "args": { "table": "hotpaths", "label": "Patch_Bill_Production_ShouldDoNow:Postfix", "metric": "calls", "min": "20" }
     },
     { "type": "LookAt", "args": { "zoom": "14" } },
     { "type": "Wait", "args": { "frames": "10" } },
