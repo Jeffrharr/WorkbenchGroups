@@ -1,6 +1,7 @@
 using HarmonyLib;
 using RimWorld;
 using Verse;
+using WorkbenchGroups.Core;
 
 namespace WorkbenchGroups.Patches
 {
@@ -52,7 +53,9 @@ namespace WorkbenchGroups.Patches
             // by design, so the drag that overrides it has to be noticed in every mode too.
             NextOrder.ClearIfDisplacedFromHead(comp);
 
-            if (comp.Ordering != OrderingMode.RoundRobin)
+            // Any mode that rearranges the list keeps a snapshot, so any of them needs it
+            // refreshed — not just round robin, which used to be the only one.
+            if (!OrderingTransition.IsListMutating(comp.Ordering))
             {
                 return;
             }
