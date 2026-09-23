@@ -77,6 +77,54 @@ The player's authored order is snapshotted by bill load ID when the mode goes on
 reprojected onto the live list when it goes off, so trying the mode does not permanently
 scramble their priorities.
 
+**The snapshot is keyed on "does this mode rearrange the list", not on round robin by name.**
+The rule began as "snapshot entering round robin, restore leaving it", which is only right while
+round robin is the one mode that rearranges. A second one (issue #8's stock-aware Balance) would
+under that rule never snapshot on the way in, and switching it back to "in order" would keep its
+computed order forever. `Core/OrderingTransition` now answers it once: snapshot on the way into
+any rearranging mode, restore on the way back to "in order", and *nothing* between two
+rearranging modes — the list at that moment is the first mode's output, and snapshotting it would
+bake a rotation in as if the player had authored it. A mode value the build does not know counts
+as rearranging, so a save from a newer version keeps the snapshot it carries.
+
+## Batched round robin is a cadence, not an ordering
+
+"Make five, then switch" is round robin that rotates on every fifth start instead of every start.
+Nothing about the rotation changes — same list mutation, same safety rules in
+`BillOrdering.TryPlanRotateToTail`, same exemption for a marked order — only how often it fires,
+so the feature is a counter in front of the existing call rather than a mode of its own. Strict
+one-at-a-time pays the walk, the haul and the ingredient search on every iteration; batches
+amortise all three.
+
+- **Counted in starts, like the rotation.** Three pawns scanning together all see the same head
+  bill; it has to be the third *start* that moves it, or "three at a time" becomes three plus
+  however many pawns were already walking over.
+- **Per bill, on the anchor, keyed by load ID** — next to `CanonicalOrderIds`, not on the `Bill`,
+  which this mod does not own. A batch means nothing outside a round-robin group, so group-scoped
+  storage is the correct home. Both the sizes and the running counts are saved (a reload should
+  not restart "make five"), carried across an anchor handover, and pruned to live bills at save
+  time, since bills leave the list by more routes than the delete button.
+- **A batch of one is the round robin that shipped**, and it is the default, stored as the absence
+  of an entry. A group nobody has batched never touches the map or builds a load-ID string on the
+  job-start path. Sizes are clamped to 1–20, so a bad saved value degrades to plain round robin
+  rather than to a bill that never rotates. Changing a bill's size restarts its count: "two at a
+  time" chosen mid-batch means two from now.
+
+### Where the batch control lives
+
+The design note proposed a `(2x)` label under the chain at `(xMax - 100, y + 25)`. That band is
+`Bill_Production`'s `WidgetRow` on every row (see "Which order was asked for next" below), and the
+top line is full: reorder arrows on the left, the delete/copy/suspend trio on the right, and the
+PRIORITY badge, "do next" arrow and chain between them, the badge variable in width.
+
+So the count rides **on the chain itself**, as a corner number — the stack-count convention players
+already read on items — and the chain becomes the button: click it for "one / 2 / 3 / 5 / 10 / 20 at
+a time". No rect is taken from the bill label, and the control inherits the chain's visibility rule
+for free, which is right: a batch only means anything on a shared order. It draws only in round
+robin, and the badge is left off at a batch of one so an unbatched group looks exactly as before.
+The badge stays inside the chain's right edge (suspend begins two pixels further right) and ends at
+`y + 26`, above the widget row at `y + 29`.
+
 ## "Do this next" promotes, it does not force
 
 A button on each bill row moves that order to the head of the group's shared list and marks it
@@ -577,7 +625,7 @@ rather than re-derived.
 
 Implemented, unit-tested, and exercised in a running game.
 
-**Offline** (`./test.sh`, 136 tests): the pure core in `Source/Core/`, plus Mono.Cecil checks
+**Offline** (`./test.sh`, 245 tests): the pure core in `Source/Core/`, plus Mono.Cecil checks
 on every vanilla member the patches depend on — including the four `RecipeDef` members the
 eligibility gate reads, and the set of `Bill` types `BillUtility.MakeNewBill` constructs. That
 second one is the gate's real dependency: a fifth branch added there would let a new bill type
@@ -598,6 +646,8 @@ All probes pass:
 | `marker_foreign_reorder` | Where "do this next" meets foreign-reorder detection, graded on probes with a negative control. **A:** mark under round robin, start a job, unmark, switch to in-order — the authored order comes back (head slot 0), not the marker's promotion. **B:** in-order, Nice Bill Tab's tab open, a bare `Remove`/`Insert` puts another order above the marked one (`WbgMoveBillDirect`, standing in for their drag) — the mark clears. Against the build before the fix, both key probes fail (head stays 2; mark stays 2). |
 | `nicebilltab_do_next_button` | The "do this next" button above Nice Bill Tab's list. Selection goes through their own `SelectBill`, the press through the button's handler. Refuses with nothing selected and with two selected (the step asserts the press did nothing, and the probe that nothing is marked); marks the single selected order, which moves to the head; a second press unmarks it. Captures before and after the press: the button's face changes at median ΔE 32.1, the marked row at 30.3 as it moves up and turns red; 0.05% of the rest of the frame moves. |
 | `shared_save_integrity` | **Zero duplicate load-ID warnings** on save, and sharing intact afterwards. |
+| `batched_round_robin` | A batch of three holds the head for two starts and rotates on the third; unbatched bills in the same group still rotate every start; the count restarts on rotation and on a size change; a marked order never rotates, batch or not; "in order" ignores batches; switching back to "in order" restores the authored order after the rotations. The whole list is asserted after every start (`wbg_bill_order`), not just its head. A/B capture of the second bench's tab with and without the `3x` badge. |
+| `marked_and_worked` | The three-signal row issue #8 left unphotographed: a marked order that is also being worked and fully claimed, framed directly above a row that is worked but not marked. Both rows measure the green edge at exactly `(115, 204, 115)`, so the red outline does not tint it; the red outline, the green edge and vanilla's dimmed "would not start now" text are all distinct in one frame. (An earlier `do_this_next_worked` capture read the edge as a beige `(158, 151, 136)`; the new frame does not reproduce that, and it is not what the code draws.) |
 | `do_this_next` | Marking promotes to the head; the marked order survives a job start that would otherwise rotate it away; marking a second order replaces the first; clicking the marked one again clears it; deleting the marked order leaves nothing marked. 13 probes. Two identically-framed captures of the second bench's tab, before and after marking — **median ΔE 11.4 over the marked row**, against 0.06% of the map changing at all. |
 | `reload_roundtrip_save` + `reload_roundtrip_load` | The save/reload round-trip, run as two game loads by `Tests/run_roundtrip.sh` (kept in `Tests/Scenarios/roundtrip/`, since it needs a fixture the rest of the suite does not) — phase A links, adds three bills, switches on round robin and saves; the script copies that save into the harness's `Fixtures/`; phase B boots with it and only probes. **After the load the two benches' `billStack` fields are the same object**, all three bills are visible from the second bench, and the group is still in round robin. |
 

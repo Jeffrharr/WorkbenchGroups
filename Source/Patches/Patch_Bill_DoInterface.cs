@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using HarmonyLib;
 using RimWorld;
 using UnityEngine;
@@ -244,7 +245,7 @@ namespace WorkbenchGroups.Patches
 
             if (index != null)
             {
-                DrawLinkChain(bill, row, anchor, index, groupSize, compact);
+                DrawLinkChain(bill, row, anchor, index, groupSize, compact, anchorComp);
             }
         }
 
@@ -529,7 +530,13 @@ namespace WorkbenchGroups.Patches
         }
 
         private static void DrawLinkChain(
-            Bill bill, Rect row, Building_WorkTable anchor, BillGroupIndex index, int groupSize, bool compact)
+            Bill bill,
+            Rect row,
+            Building_WorkTable anchor,
+            BillGroupIndex index,
+            int groupSize,
+            bool compact,
+            CompBillGroup anchorComp)
         {
             BillLinkState state = BillLinkage.StateFor(
                 groupSize > 1,
@@ -551,12 +558,142 @@ namespace WorkbenchGroups.Patches
             GUI.DrawTexture(icon, state == BillLinkState.Shared ? SharedTex : PinnedTex);
             GUI.color = previous;
 
+            bool batched = anchorComp?.Ordering == OrderingMode.RoundRobin;
+            if (batched)
+            {
+                // In Nice Bill Tab's compact rows the chain sits on their product thumbnail, which
+                // is itself their pause button, so a click there must stay theirs. The count is
+                // still drawn — a batch set from vanilla's tab is never invisible in theirs — but
+                // it is only *set* from vanilla's tab, like the "do next" button.
+                DrawBatchControl(bill, icon, anchorComp, interactive: !compact);
+            }
+
             if (Mouse.IsOver(icon))
             {
-                TooltipHandler.TipRegion(icon, state == BillLinkState.Shared
+                string tip = state == BillLinkState.Shared
                     ? "WBG_BillSharedTip".Translate(groupSize)
-                    : "WBG_BillPinnedTip".Translate());
+                    : "WBG_BillPinnedTip".Translate();
+
+                if (batched)
+                {
+                    tip += "\n\n" + (compact ? "WBG_BillBatchTipReadOnly" : "WBG_BillBatchTip")
+                        .Translate(anchorComp.BatchSizeOf(bill));
+                }
+
+                TooltipHandler.TipRegion(icon, tip);
             }
+        }
+
+        /// <summary>
+        /// Batched round robin's per-row control: the chain becomes a button that sets how many of
+        /// this order to make before rotating, and a count badge on its corner shows the size.
+        ///
+        /// <b>Why here and not under the chain.</b> The design note put a <c>(2x)</c> label at
+        /// <c>(xMax - 100, y + 25)</c>, on the second line. That line is not free:
+        /// <c>Bill_Production.DoConfigInterface</c> runs a <c>WidgetRow</c> from
+        /// <c>(xMax, y + 29)</c> leftwards with "Details...", the repeat-mode button and the +/-
+        /// controls, on every bill this mod can hold — the same finding that moved the PRIORITY
+        /// badge up. The top line is spoken for too: reorder arrows on the left, the
+        /// delete/copy/suspend trio on the right, and the badge, the "do next" arrow and the chain
+        /// between them, the badge variable in width.
+        ///
+        /// So the count rides on the chain itself, as a corner number — the convention every
+        /// player already reads on a stack of items. It inherits the chain's visibility rule for
+        /// free, which is right: a batch only means anything on a shared order. And making the
+        /// chain the button needs no new rect at all, where any separate control would have had
+        /// to take one from the bill label.
+        ///
+        /// Drawn only in round robin, the one mode a batch affects. The badge is left off at a
+        /// batch of one so a group that has never used the feature looks exactly as it did.
+        /// </summary>
+        private static void DrawBatchControl(Bill bill, Rect icon, CompBillGroup anchorComp, bool interactive)
+        {
+            int size = anchorComp.BatchSizeOf(bill);
+            if (size > 1)
+            {
+                DrawBatchBadge(icon, size);
+            }
+
+            if (!interactive)
+            {
+                return;
+            }
+
+            Widgets.DrawHighlightIfMouseover(icon);
+            if (Widgets.ButtonInvisible(icon))
+            {
+                SoundDefOf.Tick_High.PlayOneShotOnCamera();
+                Find.WindowStack.Add(new FloatMenu(BatchOptions(bill, anchorComp, size)));
+            }
+        }
+
+        /// <summary>The sizes offered. Small steps where they matter, then coarse ones.</summary>
+        private static readonly int[] BatchChoices = { 1, 2, 3, 5, 10, BillOrdering.MaxBatchSize };
+
+        private static List<FloatMenuOption> BatchOptions(Bill bill, CompBillGroup anchorComp, int current)
+        {
+            List<FloatMenuOption> options = new List<FloatMenuOption>(BatchChoices.Length);
+            foreach (int choice in BatchChoices)
+            {
+                int chosen = choice;
+                string label = choice == 1
+                    ? "WBG_BatchOptionOne".Translate()
+                    : "WBG_BatchOption".Translate(choice);
+
+                if (choice == current)
+                {
+                    label = "WBG_OrderingCurrent".Translate(label);
+                }
+
+                options.Add(new FloatMenuOption(label, delegate
+                {
+                    anchorComp.SetBatchSize(bill, chosen);
+                }));
+            }
+
+            return options;
+        }
+
+        /// <summary>
+        /// Opaque behind the number for the same reason as the PRIORITY badge: the chain texture is
+        /// busy, and a bare Tiny digit over it came out as noise.
+        /// </summary>
+        private static readonly Color BatchPlate = new Color(0.08f, 0.08f, 0.08f, 0.9f);
+
+        /// <summary>Tall enough for a Tiny digit's glyph, not its line height.</summary>
+        private const float BatchPlateHeight = 12f;
+
+        /// <summary>
+        /// The count, right-aligned to the chain's right edge and bottom-aligned to one pixel below
+        /// it. Right, not further: the suspend button starts at <c>xMax - 76</c>, two pixels past
+        /// the chain. Down, not further: <c>Bill_Production</c>'s widget row starts at
+        /// <c>y + 29</c>, and this ends at <c>y + 26</c>. It grows upwards over the chain, which
+        /// is what a stack count on an item icon does too.
+        /// </summary>
+        private static void DrawBatchBadge(Rect icon, int size)
+        {
+            GameFont previousFont = Text.Font;
+            TextAnchor previousAnchor = Text.Anchor;
+
+            Text.Font = GameFont.Tiny;
+            string text = "WBG_BatchBadge".Translate(size);
+            // The plate and the label are two rects on purpose. The first capture drew the label
+            // into a 13px box and Tiny clipped it to the bottom half of "3x"; the second sized the
+            // box to Tiny's full line height, which is legible but covers nearly the whole chain,
+            // because a line height is mostly empty space above and below the glyphs. So the plate
+            // hugs the glyphs and the label gets its full line height, centred on the plate.
+            Vector2 textSize = Text.CalcSize(text);
+            float width = textSize.x + 2f;
+
+            Rect plate = new Rect(icon.xMax - width, icon.yMax + 1f - BatchPlateHeight, width, BatchPlateHeight);
+            Widgets.DrawBoxSolid(plate, BatchPlate);
+
+            Rect label = new Rect(plate.x, plate.center.y - textSize.y / 2f, plate.width, textSize.y);
+            Text.Anchor = TextAnchor.MiddleCenter;
+            Widgets.Label(label, text);
+
+            Text.Anchor = previousAnchor;
+            Text.Font = previousFont;
         }
 
     }

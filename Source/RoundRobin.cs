@@ -56,7 +56,13 @@ namespace WorkbenchGroups
             // otherwise the two features undo each other once per job start: rotation sends the
             // marked bill to the tail and the marker puts it straight back at the head, so the
             // list visibly jumps twice per craft to end up exactly where it began.
-            if (!BillOrdering.TryPlanRotateToTail(
+            //
+            // Batched round robin gates all of this on a cadence: a bill with a batch of five
+            // stays at the head for five starts and rotates on the fifth. Counted first, so every
+            // start is counted whether or not it goes on to rotate; a batch of one — the default —
+            // completes on every start, which is the round robin that shipped before batches.
+            if (!anchorComp.CountStartAndCheckBatch(bill)
+                || !BillOrdering.TryPlanRotateToTail(
                     bills.Count,
                     index,
                     NextOrder.IsNextOrder(anchorComp, bill),
@@ -182,8 +188,9 @@ namespace WorkbenchGroups
         }
 
         /// <summary>
-        /// Snapshots the player's ordering when round robin is switched on, and puts it back when
-        /// switched off. Without this, trying the mode out permanently scrambles their priorities.
+        /// Snapshots the player's ordering when a list-rearranging mode is switched on, and puts it
+        /// back when the group returns to "in order". Without this, trying a mode out permanently
+        /// scrambles their priorities.
         /// </summary>
         public static void SetOrdering(CompBillGroup anchorComp, OrderingMode mode)
         {
@@ -194,7 +201,12 @@ namespace WorkbenchGroups
 
             BillStack stack = anchorComp.Bench?.billStack;
 
-            if (mode == OrderingMode.RoundRobin)
+            // Keyed on whether each mode *rearranges the list*, not on which mode it is, so a
+            // second rearranging mode snapshots on the way in and restores on the way out without
+            // this method learning its name. See OrderingTransition for the rule.
+            SnapshotAction action = OrderingTransition.Plan(anchorComp.Ordering, mode);
+
+            if (action == SnapshotAction.Snapshot)
             {
                 anchorComp.CanonicalOrderIds.Clear();
                 if (stack != null)
@@ -203,7 +215,7 @@ namespace WorkbenchGroups
                     RecordLastKnownOrder(anchorComp, stack);
                 }
             }
-            else if (stack != null)
+            else if (action == SnapshotAction.Restore && stack != null)
             {
                 // Last chance to notice a drag made while the mode was running. Without this the
                 // most direct route to the bug — rearrange the list, switch straight back to

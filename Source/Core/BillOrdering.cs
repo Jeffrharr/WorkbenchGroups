@@ -74,6 +74,73 @@ namespace WorkbenchGroups.Core
         }
 
         /// <summary>
+        /// The largest batch the row control offers. A cap rather than a free number because the
+        /// counter is saved per bill and a typo'd 10000 would silently turn round robin back into
+        /// "in order" for that bill; twenty is already more than one pawn makes in a day.
+        /// </summary>
+        public const int MaxBatchSize = 20;
+
+        /// <summary>
+        /// Clamps a stored batch size into the range the cadence understands. Anything below one
+        /// — the default of a bill nobody has set, a hand-edited save — means "rotate on every
+        /// start", which is plain round robin, so a bad value degrades to the shipped behaviour
+        /// rather than to a bill that never rotates.
+        /// </summary>
+        public static int ClampBatchSize(int batchSize)
+        {
+            if (batchSize < 1)
+            {
+                return 1;
+            }
+
+            return batchSize > MaxBatchSize ? MaxBatchSize : batchSize;
+        }
+
+        /// <summary>
+        /// Batched round robin: whether this job start finishes the bill's current batch, and so
+        /// should rotate it to the tail.
+        ///
+        /// Batching is a cadence, not an ordering. Strict round robin pays the walk, the haul and
+        /// the ingredient search on every single iteration; "make five, then switch" amortises
+        /// all three, and is how players think about a queue anyway. So the only change to round
+        /// robin is *how often* the existing rotation fires — the rotation itself, and every
+        /// safety rule in <see cref="TryPlanRotateToTail"/>, are untouched.
+        ///
+        /// A batch of one rotates on every start, which is exactly the round robin that shipped
+        /// before batches existed. That is what lets the feature ship inert: every bill defaults
+        /// to one.
+        ///
+        /// Counted in starts rather than completions for the same reason rotation happens at job
+        /// start: three pawns scanning together all see the same head bill, and it must be the
+        /// third *start* that moves it, or "three at a time" becomes three plus however many
+        /// pawns were already on their way.
+        /// </summary>
+        /// <param name="startsSoFar">Starts of this bill since it last rotated. Negative values,
+        /// which nothing should produce, are read as zero.</param>
+        /// <param name="batchSize">How many starts make one batch; clamped by
+        /// <see cref="ClampBatchSize"/>.</param>
+        /// <param name="startsAfter">The counter to store back: zero when the batch completed,
+        /// otherwise one more than before.</param>
+        /// <returns>True when the bill should rotate now.</returns>
+        public static bool CompletesBatch(int startsSoFar, int batchSize, out int startsAfter)
+        {
+            int batch = ClampBatchSize(batchSize);
+            int starts = (startsSoFar < 0 ? 0 : startsSoFar) + 1;
+
+            // ">=" rather than "==" so lowering a bill's batch below its running count — 10 down
+            // to 2 while it sits at 5 — rotates on the next start instead of counting up forever
+            // towards a number it has already passed.
+            if (starts >= batch)
+            {
+                startsAfter = 0;
+                return true;
+            }
+
+            startsAfter = starts;
+            return false;
+        }
+
+        /// <summary>
         /// Works out the remove/insert index pair for moving one entry to the front of a list.
         ///
         /// This is the whole of "do this next". Vanilla walks the bill list top-down, so putting

@@ -281,6 +281,18 @@ the main checkout, does not find it, and draws `BadTex` — a magenta X that loo
 wrong ContentFinder path. Install the whole versioned folder instead:
 `--install <worktree>/1.6:<main-checkout>/1.6`.
 
+#### Issue #8's ordering features in Nice Bill Tab
+
+Under the parity rule in `CLAUDE.md`. For batched round robin:
+
+- **List moves: covered.** A batch that holds the head goes through the same branch as a no-op
+  rotation, which records the baseline, and a completed batch rotates through the recorded path.
+  `RecordLastKnownOrder` also bumps `OwnBillListMoves`, so their cached list refreshes.
+- **The batch count is drawn on their rows**, on the thumbnail-corner chain, but **it cannot be
+  set there**. That thumbnail is their pause button, so a click must stay theirs; the tooltip says
+  to use the standard tab. The same limit as the "do next" button, for the same reason.
+  Unverified on screen in their tab: whether the count fits on a 16px chain.
+
 ### 2f. Conflicting mods, generally
 
 `About.xml` declares seven `loadAfter` entries. Only the baseline load has ever run. At
@@ -313,9 +325,10 @@ probes still pass — those two are the ones that rewrite the surfaces we depend
 Issue #8 proposed four ordering features and made the point that three of them are one
 mechanism: "do this next", "at least N of each first" and "balance by shortfall" all sort the
 shared list by an urgency key and differ only in the key. **§1 "do this next" is now built**
-(see `DESIGN.md`, *"Do this next" promotes, it does not force*). The three that remain are §2
-batched round robin, §3 stock-aware ordering, and the group-level "one each first" toggle that
-rides on §3.
+(see `DESIGN.md`, *"Do this next" promotes, it does not force*), and so is **§2 batched round
+robin** (*Batched round robin is a cadence, not an ordering*), together with the snapshot widening
+below. What remains is §3 stock-aware ordering and the group-level "one each first" toggle that
+rides on it.
 
 Kept as a numbered section here rather than left in the issue because §1 settled several
 questions the issue listed as open, and the next agent should not re-open them:
@@ -343,19 +356,18 @@ What §3 inherits, and what it changes:
   because it needs `CountProducts` and that is far too expensive once per visible row per frame.
   **§3 makes that one cheap** — it has to cache per-bill product counts anyway, so finishing the
   rule there is a few lines on top of the cache and should happen in the same change.
-- The canonical-order snapshot widening the issue asks for has a second caller now:
-  `RoundRobin.SetOrdering` re-promotes the marked order after reprojecting the authored order,
-  and any new list-mutating mode must do the same or the marked row goes red in the middle of
-  the list.
-- The row's button column is laid out at `xMax - 126` with the badge beneath it at `y + 25`,
-  which is the slot the issue's layout table reserved for §1. §2's `(2x)` batch label still has
-  its own slot at `xMax - 100, y + 25`, under the chain.
+- **The canonical-order snapshot is widened** (`Core/OrderingTransition`): it snapshots entering
+  any list-rearranging mode and restores on the way back to "in order", so `Balance` needs no edit
+  to `SetOrdering` beyond existing. What §3 still owes is its own re-promotion of the marked order
+  *after every sort*, since a re-sort is a rearrangement the restore path never sees — the
+  comparator's `priorityTier` 0 is where that falls out.
+- **§2's batch control is on the chain icon, not under it.** The count is a corner badge on the
+  chain and the chain is the button. Nothing new was placed on a row's second line.
 
-One thing §1 left unphotographed, worth folding into whatever scenario work comes next: a marked
-order that is *also* being worked, where the red outline, the green active-bill edge and
-vanilla's pink "would not start now" all land on one row. Three colour signals on one line is
-exactly the kind of thing that has to be looked at rather than reasoned about, and the
-`do_this_next` captures only show a marked order sitting idle.
+The marked-and-worked row §1 left unphotographed is now captured (`marked_and_worked`): red
+outline, green edge and vanilla's dimmed "would not start now" all read distinctly on one row.
+
+**Nice Bill Tab parity for §2** is in §2e, *Issue #8's ordering features in Nice Bill Tab*.
 
 **Read the layout note in `DESIGN.md` before drawing anything new on a bill row.** §2's proposed
 `(2x)` batch label at `(xMax - 100, y + 25)` is on top of `Bill_Production.DoConfigInterface`'s
