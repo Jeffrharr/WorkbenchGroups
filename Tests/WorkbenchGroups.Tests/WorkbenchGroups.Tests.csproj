@@ -39,6 +39,8 @@
     <Compile Include="../../Source/Core/ClassExclusionList.cs" Link="Core/ClassExclusionList.cs" />
     <Compile Include="../../Source/Core/BillLinkage.cs" Link="Core/BillLinkage.cs" />
     <Compile Include="../../Source/Core/OrderingTransition.cs" Link="Core/OrderingTransition.cs" />
+    <Compile Include="../../Source/Core/UrgencyOrder.cs" Link="Core/UrgencyOrder.cs" />
+    <Compile Include="../../Source/Core/CountFreshness.cs" Link="Core/CountFreshness.cs" />
     <!-- Not under Core/ because the rest of the mod reads it too, but it is a bare enum with no
          game references, and the snapshot rule is phrased in terms of it. -->
     <Compile Include="../../Source/OrderingMode.cs" Link="OrderingMode.cs" />
