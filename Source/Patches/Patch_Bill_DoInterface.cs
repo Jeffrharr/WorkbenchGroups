@@ -225,6 +225,13 @@ namespace WorkbenchGroups.Patches
             // edge bar is drawn after the outline so "being worked now" sits on top of it.
             DrawWash(row, BillAccentRule.WashFor(accent, marked, compact), accent);
 
+            // Vanilla rows only: Nice Bill Tab has no arrows, it reorders by drag, and Balance's
+            // answer to a drag there is the absorb-then-sort in UrgencySort, not a grey overlay.
+            if (anchorComp != null && !compact && anchorComp.Ordering == OrderingMode.Balance)
+            {
+                GreyReorderArrows(row);
+            }
+
             if (marked)
             {
                 DrawNextOrderMark(row, compact);
@@ -246,6 +253,36 @@ namespace WorkbenchGroups.Patches
             if (index != null)
             {
                 DrawLinkChain(bill, row, anchor, index, groupSize, compact, anchorComp);
+            }
+        }
+
+        /// <summary>
+        /// Over the arrows, close to the tab's own background so they read as disabled rather than
+        /// as covered by a panel.
+        /// </summary>
+        private static readonly Color ArrowGrey = new Color(0.13f, 0.14f, 0.15f, 0.72f);
+
+        /// <summary>Vanilla's arrows: 24px wide, up at <c>y</c> and down at <c>y + 24</c>.</summary>
+        private const float ArrowColumnWidth = 24f;
+
+        /// <summary>
+        /// Greys the reorder arrows while Balance owns the order.
+        ///
+        /// Balance re-sorts before every bench scan, so an arrow click would be undone within a
+        /// second. The click is refused in <see cref="Patch_BillStack_Reorder"/>; this is the half
+        /// that says so before the player tries, instead of leaving two live-looking buttons that
+        /// do nothing. Painted over vanilla's arrows rather than stopping them being drawn,
+        /// because <c>Bill.DoInterface</c> draws them inline and not drawing them would take a
+        /// transpiler into a method this mod otherwise leaves alone.
+        /// </summary>
+        private static void GreyReorderArrows(Rect row)
+        {
+            Rect arrows = new Rect(row.x, row.y, ArrowColumnWidth, ArrowColumnWidth * 2f);
+            Widgets.DrawBoxSolid(arrows, ArrowGrey);
+
+            if (Mouse.IsOver(arrows))
+            {
+                TooltipHandler.TipRegion(arrows, "WBG_ReorderOwnedByBalance".Translate());
             }
         }
 
