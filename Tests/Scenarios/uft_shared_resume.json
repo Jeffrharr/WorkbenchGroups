@@ -1,0 +1,397 @@
+{
+  "name": "uft_shared_resume",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "comment": "Issue #11, live. A real craft loop — real pawns, real DoBill jobs, real ingredients — for an order that leaves an unfinished item behind, in a two-bench shared list. The bench roles in every probe are 0 = anchor (owns the list), 1 = member, -1 = neither, -2 = nothing to report.",
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "20",
+        "height": "20"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "HandTailoringBench",
+        "layout": "cells",
+        "cells": "-4,0; 4,0",
+        "rot": "North"
+      }
+    },
+    {
+      "type": "WbgClaimBenches",
+      "args": {
+        "def": "HandTailoringBench"
+      }
+    },
+    {
+      "type": "WbgLinkBenches",
+      "args": {
+        "def": "HandTailoringBench",
+        "limit": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_group_size",
+        "expectedValue": "2",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_redirect_installed",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "comment": "Negative path first, on the empty list: bills that genuinely cannot be shared still bounce off AddBill, now that they share IsShareableBill with the ones that can. Lifter is a Bill_ProductionMech (gestation), ResurrectLightMech a Bill_ResurrectMech. Both Biotech; ifPresent logs a skip on a machine without it.",
+      "type": "WbgTryAddBill",
+      "args": {
+        "recipe": "Lifter",
+        "expect": "refused",
+        "ifPresent": "true"
+      }
+    },
+    {
+      "type": "WbgTryAddBill",
+      "args": {
+        "recipe": "ResurrectLightMech",
+        "expect": "refused",
+        "ifPresent": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_bills_visible_at_second_bench",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "comment": "The positive half of the gate: a Bill_ProductionWithUft goes into the shared list and is visible from the member.",
+      "type": "WbgTryAddBill",
+      "args": {
+        "recipe": "Make_Apparel_BasicShirt",
+        "expect": "added"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_bills_visible_at_second_bench",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "WbgSpawnStack",
+      "args": {
+        "def": "Cloth",
+        "count": "75",
+        "cell": "0,-3"
+      }
+    },
+    {
+      "type": "WbgSpawnStack",
+      "args": {
+        "def": "Steel",
+        "count": "10",
+        "cell": "0,-6",
+        "role": "control"
+      }
+    },
+    {
+      "type": "WbgMakeStockpile",
+      "args": {
+        "from": "-2,4",
+        "to": "2,6"
+      }
+    },
+    {
+      "type": "SpawnPawn",
+      "args": {
+        "kind": "Colonist",
+        "count": "4",
+        "faction": "player",
+        "offset": "-3,-9",
+        "spacing": "2"
+      }
+    },
+    {
+      "type": "WbgAssignRoles",
+      "args": {}
+    },
+    {
+      "comment": "Phase 1: the member is busy, so the crafter starts the order at the anchor. The unfinished item appears there.",
+      "type": "WbgOccupyBench",
+      "args": {
+        "which": "member"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "900"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_crafter_job_at",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_count",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_at",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "comment": "Interrupted: drafted mid-craft, the item stays on the anchor. Then the anchor becomes the busy one.",
+      "type": "WbgDraft",
+      "args": {
+        "drafted": "true"
+      }
+    },
+    {
+      "type": "WbgRememberUft",
+      "args": {}
+    },
+    {
+      "type": "WbgOccupyBench",
+      "args": {
+        "which": "anchor"
+      }
+    },
+    {
+      "comment": "The transpiler's answer, asked directly of the real work giver: from the free member, the resume job targets the member. Vanilla targets the anchor here (see uft_shared_resume_control).",
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_resume_target_at",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "comment": "Phase 2: let the pawn's own think tree choose. It must resume the same item at the free member, carrying it over, while the bill still belongs to the anchor.",
+      "type": "WbgDraft",
+      "args": {
+        "drafted": "false"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "700"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_crafter_job_at",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_crafter_job_vanilla_at",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_same_item",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_count",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_at",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "comment": "Phase 3: interrupted again, so the item is parked at the member. Vanilla's anchor-only guard does not cover it there; ours does, and BoundWorkTable names the member.",
+      "type": "WbgDraft",
+      "args": {
+        "drafted": "true"
+      }
+    },
+    {
+      "type": "WbgOccupyBench",
+      "args": {
+        "which": "none"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_at",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_vanilla_guard",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_haulable",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_bound_table_at",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "WbgCloseDebugLog",
+      "args": {}
+    },
+    {
+      "type": "Select",
+      "args": {
+        "defName": "UnfinishedApparel",
+        "count": "1"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "13"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "uft_parked_at_member.png",
+        "hideUi": "false"
+      }
+    },
+    {
+      "comment": "A hauler with nothing else to do, a stockpile that accepts everything, and a control stack of steel. The steel reaching the stockpile proves the hauler hauls; the item staying at the member proves it was left alone on purpose.",
+      "type": "WbgEnableWork",
+      "args": {
+        "role": "hauler",
+        "workType": "Hauling"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "5000"
+      },
+      "comment": "Long enough for a randomly generated hauler to finish carrying the leftover cloth as well as the control steel; 2500 ticks passed on one pawn and not on the next."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_control_in_storage",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_at",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "comment": "Phase 4: back to work, and the order finishes — the product is real, not just a job that pointed somewhere.",
+      "type": "WbgDraft",
+      "args": {
+        "drafted": "false"
+      }
+    },
+    {
+      "type": "WbgLogCrafter",
+      "args": {}
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "10000"
+      }
+    },
+    {
+      "type": "WbgLogCrafter",
+      "args": {}
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_first_bill_remaining",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_count",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    }
+  ]
+}

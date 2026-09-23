@@ -1,0 +1,321 @@
+{
+  "name": "uft_shared_resume_control",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "comment": "Control for uft_shared_resume (issue #11): identical scene, fix withheld. Roles: 0 = anchor, 1 = member, -1 = neither, -2 = nothing to report.",
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "20",
+        "height": "20"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "HandTailoringBench",
+        "layout": "cells",
+        "cells": "-4,0; 4,0",
+        "rot": "North"
+      }
+    },
+    {
+      "type": "WbgClaimBenches",
+      "args": {
+        "def": "HandTailoringBench"
+      }
+    },
+    {
+      "type": "WbgLinkBenches",
+      "args": {
+        "def": "HandTailoringBench",
+        "limit": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_group_size",
+        "expectedValue": "2",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_redirect_installed",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "comment": "The control. Same scene, with the three issue-#11 patches withheld for the rest of the process, asserting vanilla's outcome. It proves the probes in uft_shared_resume can see the difference. RedirectInstalled stays 1 (the transpiler ran at startup), which is what still lets the order into the list. Run this scenario on its own, never in a suite: Harmony state outlives a scenario, and a failure before the restore step at the end leaves the patches off.",
+      "type": "WbgWithholdPatches",
+      "args": {
+        "classes": "Patch_WorkGiver_DoBill_FinishUftJob, Patch_HaulAIUtility_PawnCanAutomaticallyHaulFast, Patch_UnfinishedThing_BoundWorkTable"
+      }
+    },
+    {
+      "comment": "Negative path first, on the empty list: bills that genuinely cannot be shared still bounce off AddBill, now that they share IsShareableBill with the ones that can. Lifter is a Bill_ProductionMech (gestation), ResurrectLightMech a Bill_ResurrectMech. Both Biotech; ifPresent logs a skip on a machine without it.",
+      "type": "WbgTryAddBill",
+      "args": {
+        "recipe": "Lifter",
+        "expect": "refused",
+        "ifPresent": "true"
+      }
+    },
+    {
+      "type": "WbgTryAddBill",
+      "args": {
+        "recipe": "ResurrectLightMech",
+        "expect": "refused",
+        "ifPresent": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_bills_visible_at_second_bench",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "comment": "The positive half of the gate: a Bill_ProductionWithUft goes into the shared list and is visible from the member.",
+      "type": "WbgTryAddBill",
+      "args": {
+        "recipe": "Make_Apparel_BasicShirt",
+        "expect": "added"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_bills_visible_at_second_bench",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "WbgSpawnStack",
+      "args": {
+        "def": "Cloth",
+        "count": "75",
+        "cell": "0,-3"
+      }
+    },
+    {
+      "type": "WbgSpawnStack",
+      "args": {
+        "def": "Steel",
+        "count": "10",
+        "cell": "0,-6",
+        "role": "control"
+      }
+    },
+    {
+      "type": "WbgMakeStockpile",
+      "args": {
+        "from": "-2,4",
+        "to": "2,6"
+      }
+    },
+    {
+      "type": "SpawnPawn",
+      "args": {
+        "kind": "Colonist",
+        "count": "4",
+        "faction": "player",
+        "offset": "-3,-9",
+        "spacing": "2"
+      }
+    },
+    {
+      "type": "WbgAssignRoles",
+      "args": {}
+    },
+    {
+      "comment": "Phase 1: the member is busy, so the crafter starts the order at the anchor. The unfinished item appears there.",
+      "type": "WbgOccupyBench",
+      "args": {
+        "which": "member"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "900"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_crafter_job_at",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_count",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_at",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "comment": "Interrupted: drafted mid-craft, the item stays on the anchor. Then the anchor becomes the busy one.",
+      "type": "WbgDraft",
+      "args": {
+        "drafted": "true"
+      }
+    },
+    {
+      "type": "WbgRememberUft",
+      "args": {}
+    },
+    {
+      "type": "WbgOccupyBench",
+      "args": {
+        "which": "anchor"
+      }
+    },
+    {
+      "comment": "Vanilla aims the resume job at the anchor — the busy bench — even though the member was the bench scanned.",
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_resume_target_at",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "comment": "The crafter cannot carry the item to the member without the redirect, so the hauler half of the control parks it there by hand.",
+      "type": "WbgMoveUft",
+      "args": {
+        "to": "member"
+      }
+    },
+    {
+      "type": "WbgOccupyBench",
+      "args": {
+        "which": "none"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_at",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_vanilla_guard",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_haulable",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_bound_table_at",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "WbgCloseDebugLog",
+      "args": {}
+    },
+    {
+      "type": "Select",
+      "args": {
+        "defName": "UnfinishedApparel",
+        "count": "1"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "13"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "uft_parked_at_member_control.png",
+        "hideUi": "false"
+      }
+    },
+    {
+      "type": "WbgEnableWork",
+      "args": {
+        "role": "hauler",
+        "workType": "Hauling"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "5000"
+      },
+      "comment": "Long enough for a randomly generated hauler to finish carrying the leftover cloth as well as the control steel; 2500 ticks passed on one pawn and not on the next."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_control_in_storage",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "comment": "Vanilla: the half-made shirt at the member read as litter and went to the stockpile.",
+      "type": "Probe",
+      "args": {
+        "probeName": "wbg_uft_at",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "WbgWithholdPatches",
+      "args": {
+        "classes": "Patch_WorkGiver_DoBill_FinishUftJob, Patch_HaulAIUtility_PawnCanAutomaticallyHaulFast, Patch_UnfinishedThing_BoundWorkTable",
+        "restore": "true"
+      }
+    }
+  ]
+}
