@@ -367,6 +367,13 @@ namespace WorkbenchGroups.Compat
                 return;
             }
 
+            // Their drag-and-drop never calls BillStack.Reorder, so the rule "a drag that puts
+            // something above the marked order cancels the mark" gets no event here. Checking
+            // once per tab draw is the earliest point after a drop that we get control again,
+            // and it costs a cached reference and one comparison against the head of the list.
+            // Covers in-order groups too, where the round-robin divergence check never runs.
+            NextOrder.ClearIfDisplacedFromHead(AnchorCompOf(SelTable));
+
             // Left-aligned and only as wide as it needs to be. Spanning the pane made a short
             // label float in the middle of a very wide button, which read as a header bar rather
             // than as something to press. Clamped so a long translation cannot grow it back under
