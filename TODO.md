@@ -275,8 +275,9 @@ Still open from this item:
   on the thumbnail) and a drag above the marked order clears it, but setting a mark needs vanilla's
   tab. A button needs a slot their row does not have; the likeliest home is our own strip above
   their list, acting on their selected bill, which means reading their `Selections` by reflection.
-- **Their `NoOneCanDo` red is unreachable in their 1.6 release** — declared, coloured, never
-  returned. Our handling of it is verified only with the status forced by a test step.
+- **Their `NoOneCanDo` state is unreachable in their 1.6 release** — declared, coloured, never
+  returned. We repaint it grey (red means "do this next" in both tabs); verified only with the
+  status forced by a test step.
 
 One trap worth keeping, found while verifying the gizmo icon: **`--mod-overlay` installs assemblies
 and nothing else.** A texture added in a worktree is not in the overlay, so the game loads it from

@@ -106,4 +106,43 @@ public class BillAccentTests
         // green as work here and the two rows could not be told apart.
         Assert.That(BillAccentRule.FillsRow(accent), Is.EqualTo(expected));
     }
+
+    [TestCase(BillAccent.None)]
+    [TestCase(BillAccent.WorkedHere)]
+    [TestCase(BillAccent.NextUp)]
+    [TestCase(BillAccent.WorkedElsewhere)]
+    public void A_marked_row_is_painted_red_in_the_compact_host_too(BillAccent accent)
+    {
+        // Red means "do this next" in both tabs. The first version left the marked row with only
+        // an outline while their NoOneCanDo row was red, and the red row read as the priority one.
+        Assert.That(BillAccentRule.StripeFor(accent, marked: true), Is.EqualTo(RowWash.NextOrder));
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public void Blocked_is_grey_and_outranks_even_the_marker(bool marked)
+    {
+        Assert.That(BillAccentRule.StripeFor(BillAccent.Blocked, marked), Is.EqualTo(RowWash.Blocked));
+    }
+
+    [TestCase(BillAccent.WorkedHere, RowWash.Accent)]
+    [TestCase(BillAccent.NextUp, RowWash.Accent)]
+    [TestCase(BillAccent.WorkedElsewhere, RowWash.None)]
+    [TestCase(BillAccent.None, RowWash.None)]
+    public void Unmarked_compact_rows_follow_the_fill_rule(BillAccent accent, RowWash expected)
+    {
+        Assert.That(BillAccentRule.StripeFor(accent, marked: false), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void Nothing_but_the_marker_is_ever_red()
+    {
+        // The invariant the user asked for, stated once over the whole input space: no state of
+        // an unmarked row, in either tab, paints it red.
+        foreach (BillAccent accent in System.Enum.GetValues(typeof(BillAccent)))
+        {
+            Assert.That(BillAccentRule.StripeFor(accent, marked: false), Is.Not.EqualTo(RowWash.NextOrder), accent.ToString());
+            Assert.That(BillAccentRule.WashFor(accent, marked: false, compact: false), Is.Not.EqualTo(RowWash.NextOrder), accent.ToString());
+        }
+    }
 }

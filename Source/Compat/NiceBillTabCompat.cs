@@ -204,7 +204,7 @@ namespace WorkbenchGroups.Compat
         private static Color? stripeOverride;
 
         /// <summary>
-        /// Nice Bill Tab's <c>BillStatus.NoOneCanDo</c>, the red one, as a bare ordinal.
+        /// Nice Bill Tab's <c>BillStatus.NoOneCanDo</c>, the one they draw red, as a bare ordinal.
         ///
         /// Their status is their own enum, and naming it in a signature here would need the hard
         /// assembly reference this class exists to avoid — so the argument arrives through
@@ -218,15 +218,15 @@ namespace WorkbenchGroups.Compat
 
         private static void DrawBillPreviewPrefix(Bill bill, bool drawButtons, object[] __args)
         {
-            stripeOverride = drawButtons && !IsBlocked(__args) ? StripeColorFor(bill) : null;
+            stripeOverride = drawButtons ? StripeColorFor(bill, IsBlocked(__args)) : null;
         }
 
         /// <summary>
-        /// Red wins. Nice Bill Tab already paints a row red when no colonist can do the work —
-        /// every one of them has the work type at priority zero, or none can reach it — and that
-        /// contradicts everything this mod's colours say rather than ranking against them. A row
-        /// claiming "starting next" in blue while nobody is able to start it is worse than no
-        /// colour at all, so their red is left exactly as they drew it.
+        /// Whether their row status is "nobody can do this work". That state still outranks every
+        /// colour of ours — a row claiming "starting next" in blue while nobody can start it is
+        /// worse than no colour — but it is repainted grey rather than left red, because red means
+        /// "do this next" in both tabs. <see cref="BillAccentRule.StripeFor"/> has the reasoning,
+        /// including why it is their colour that yields (the state never fires in their 1.6).
         /// </summary>
         private static bool IsBlocked(object[] args)
         {
@@ -250,8 +250,12 @@ namespace WorkbenchGroups.Compat
                 return;
             }
 
+            // Their alpha is kept as a floor rather than a value: it is how they tell a pending
+            // row from a finished one, and that is not ours to erase. The override's own alpha can
+            // only raise it — the marker's red is lifted to the strength their own red had, so the
+            // priority row reads at least as loudly as the row red used to mark.
             Color tint = stripeOverride.Value;
-            GUI.color = new Color(tint.r, tint.g, tint.b, GUI.color.a);
+            GUI.color = new Color(tint.r, tint.g, tint.b, Mathf.Max(GUI.color.a, tint.a));
         }
 
         /// <summary>
@@ -259,16 +263,41 @@ namespace WorkbenchGroups.Compat
         /// <see cref="Patch_Bill_DoInterface.AccentFor"/>, so this tab and vanilla's cannot reach
         /// different conclusions about the same bill.
         /// </summary>
-        private static Color? StripeColorFor(Bill bill)
+        private static Color? StripeColorFor(Bill bill, bool blocked)
         {
-            BillAccent accent = Patch_Bill_DoInterface.AccentFor(bill);
+            BillAccent accent = Patch_Bill_DoInterface.AccentFor(bill, blocked);
+            bool marked = NextOrder.IsNextOrder(NextOrder.AnchorCompOf(bill?.billStack), bill);
 
-            // The stripes are this host's equivalent of our wash in vanilla's tab, so the same
-            // rule decides who may repaint them.
-            return BillAccentRule.FillsRow(accent)
-                ? Patch_Bill_DoInterface.ColourOf(accent)
-                : (Color?)null;
+            switch (BillAccentRule.StripeFor(accent, marked))
+            {
+                case RowWash.Blocked:
+                    return BlockedStripe;
+                case RowWash.NextOrder:
+                    Color red = Patch_Bill_DoInterface.NextOrderAccent;
+                    return new Color(red.r, red.g, red.b, TheirRedAlpha);
+                case RowWash.Accent:
+                    Color accentColour = Patch_Bill_DoInterface.ColourOf(accent);
+                    return new Color(accentColour.r, accentColour.g, accentColour.b, 0f);
+                default:
+                    return null;
+            }
         }
+
+        /// <summary>
+        /// Their "nobody can do this" state, repainted from red to a dark neutral grey, because red
+        /// now means "do this next" in both tabs. Grey rather than another hue: it is the absence
+        /// of any work happening, and it must not read as a fourth kind of progress next to green,
+        /// blue and red. See <see cref="BillAccentRule.StripeFor"/> for why theirs is the state
+        /// that yields.
+        /// </summary>
+        private static readonly Color BlockedStripe = new Color(0.55f, 0.55f, 0.58f, 0f);
+
+        /// <summary>
+        /// The alpha Nice Bill Tab drew its own red stripes at (<c>fromHEX(0xFF0000, 0.4f)</c>).
+        /// Their pending rows are only 0.2, which made the marker's red read as a tint rather than
+        /// as the row's colour.
+        /// </summary>
+        private const float TheirRedAlpha = 0.4f;
 
         /// <summary>
         /// <paramref name="recipePreviewRect"/> is the row as Nice Bill Tab actually drew it:
