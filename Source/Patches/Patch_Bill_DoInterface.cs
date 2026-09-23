@@ -195,7 +195,11 @@ namespace WorkbenchGroups.Patches
         /// True for a host whose rows are taller and already carry their own status colouring, in
         /// which case these annotations shrink to what that host does not already say.
         /// </param>
-        public static void DrawRowAnnotations(Bill bill, Rect row, bool compact)
+        /// <param name="blocked">
+        /// The host's own "nobody can do this" verdict, when it has one; see
+        /// <see cref="AccentFor"/>.
+        /// </param>
+        public static void DrawRowAnnotations(Bill bill, Rect row, bool compact, bool blocked = false)
         {
             LastDrawnFrame = Time.frameCount;
 
@@ -208,19 +212,35 @@ namespace WorkbenchGroups.Patches
                 : null;
             int groupSize = index != null ? index.GroupSize(anchor) : 0;
 
-            // Drawn first so the green "being worked now" edge lands on top of the red wash. A
-            // marked order is routinely also the order someone is currently working, and the two
-            // are answers to different questions — "what did I ask for next" and "what is
-            // happening now" — so neither is allowed to hide the other.
-            //
-            // Vanilla rows only, for now: its button and badge are laid out against vanilla's row,
-            // and a compact host's right-hand side is ingredient icons of varying count.
-            if (groupSize > 1 && !compact)
+            CompBillGroup anchorComp = groupSize > 1 ? anchor.GetComp<CompBillGroup>() : null;
+            bool marked = anchorComp != null && NextOrder.IsNextOrder(anchorComp, bill);
+            BillAccent accent = AccentFor(bill, blocked);
+
+            // Two channels, drawn in a fixed order. The "do this next" marker answers "what did
+            // the player ask for" and the accent answers "what is the colony doing"; a marked
+            // order is usually also next up and often also being worked, so neither may hide the
+            // other. The marker owns the outline and badge, the accent owns the left edge bar, and
+            // the one surface both want — the fill — is settled by BillAccentRule.WashFor. The
+            // edge bar is drawn after the outline so "being worked now" sits on top of it.
+            DrawWash(row, BillAccentRule.WashFor(accent, marked, compact), accent);
+
+            if (marked)
             {
-                DrawNextOrder(bill, row, anchor.GetComp<CompBillGroup>());
+                DrawNextOrderMark(row, compact);
             }
 
-            DrawActiveMarker(bill, row, compact);
+            DrawAccentEdge(bill, row, accent);
+
+            // The button is vanilla-rows only. Its slot is laid out against vanilla's row, and a
+            // compact host has nowhere stable to put one: Nice Bill Tab's top line runs from its
+            // delete button leftwards through a variable number of other mods' buttons, its
+            // thumbnail is itself their pause button and would eat the click, and a right-click
+            // on the row already opens their menu. The *state* is still shown there, so a marker
+            // set from vanilla's tab is never invisible in theirs.
+            if (anchorComp != null && !compact)
+            {
+                DrawNextOrderButton(bill, row, anchorComp, marked);
+            }
 
             if (index != null)
             {
@@ -229,8 +249,8 @@ namespace WorkbenchGroups.Patches
         }
 
         /// <summary>
-        /// The per-row half of "do this next": a button that marks this order, and the highlight
-        /// and badge that say it is marked.
+        /// The control half of "do this next": the button that marks this order, or un-marks it.
+        /// The highlight and badge that say it is marked are <see cref="DrawNextOrderMark"/>.
         ///
         /// Group-only, like the chain icon and the ordering control. On a bench working alone
         /// vanilla's own reorder arrows already put an order first, so a second control that did
@@ -243,25 +263,9 @@ namespace WorkbenchGroups.Patches
         /// the click is reported during the mouse-up event pass, which paints nothing; the list
         /// is already in its new order by the repaint that follows.
         /// </summary>
-        private static void DrawNextOrder(Bill bill, Rect row, CompBillGroup anchorComp)
+        private static void DrawNextOrderButton(
+            Bill bill, Rect row, CompBillGroup anchorComp, bool marked)
         {
-            bool marked = NextOrder.IsNextOrder(anchorComp, bill);
-
-            if (marked)
-            {
-                // An outline plus a wash rather than another left edge bar: the left edge is
-                // spoken for by the active-bill accent, and this postfix draws after vanilla has
-                // already written the label and the buttons, so anything opaque would cover them.
-                Widgets.DrawBoxSolid(row, NextOrderWash);
-
-                Color previous = GUI.color;
-                GUI.color = NextOrderAccent;
-                Widgets.DrawBox(row, 2);
-                GUI.color = previous;
-
-                DrawNextOrderBadge(row);
-            }
-
             Rect button = new Rect(row.xMax - NextOrderInset, row.y + 3f, IconSize, IconSize);
 
             // Vanilla's plain right arrow, the same texture its storage chains and "next" controls
@@ -282,6 +286,80 @@ namespace WorkbenchGroups.Patches
                 TooltipHandler.TipRegion(
                     button,
                     marked ? "WBG_BillDoNextClearTip".Translate() : "WBG_BillDoNextTip".Translate());
+            }
+        }
+
+        /// <summary>
+        /// The state half of "do this next": an outline and the PRIORITY badge.
+        ///
+        /// An outline rather than another left edge bar, because the left edge belongs to the
+        /// accent; and nothing opaque except the badge's own plate, because this draws after the
+        /// host has already written the label and the buttons.
+        /// </summary>
+        private static void DrawNextOrderMark(Rect row, bool compact)
+        {
+            Color previous = GUI.color;
+            GUI.color = NextOrderAccent;
+            Widgets.DrawBox(row, 2);
+            GUI.color = previous;
+
+            if (compact)
+            {
+                DrawCompactNextOrderIcon(row);
+            }
+            else
+            {
+                DrawNextOrderBadge(row);
+            }
+        }
+
+        /// <summary>
+        /// The compact host's badge: the "do this next" arrow, in the marker's red, on the
+        /// top-left corner of the product thumbnail.
+        ///
+        /// Not the PRIORITY word. The first capture put the word across the top of the thumbnail,
+        /// and at Tiny it is wider than the thumbnail, so the plate ran on over the start of the
+        /// bill label and cut "Cook" down to "ok". There is no wider stable slot on their row, so
+        /// the badge became the glyph a player already knows from vanilla's rows — the same arrow
+        /// as the button that sets the mark — sized and placed to mirror the chain badge on the
+        /// thumbnail's bottom-left corner. The outline still carries the colour.
+        /// </summary>
+        private static void DrawCompactNextOrderIcon(Rect row)
+        {
+            float thumbnailTop = row.center.y - (CompactThumbnailSize / 2f);
+            Rect icon = new Rect(
+                row.x + CompactThumbnailInset,
+                thumbnailTop,
+                CompactBadgeSize,
+                CompactBadgeSize);
+
+            Widgets.DrawBoxSolid(icon, BadgePlate);
+
+            Color previous = GUI.color;
+            GUI.color = NextOrderAccent;
+            GUI.DrawTexture(icon, TexButton.NextBig);
+            GUI.color = previous;
+
+            if (Mouse.IsOver(icon))
+            {
+                TooltipHandler.TipRegion(icon, "WBG_NextOrderMarkedCompactTip".Translate());
+            }
+        }
+
+        /// <summary>
+        /// The one translucent fill a row gets, if any; <see cref="BillAccentRule.WashFor"/>
+        /// decided which.
+        /// </summary>
+        private static void DrawWash(Rect row, RowWash wash, BillAccent accent)
+        {
+            if (wash == RowWash.NextOrder)
+            {
+                Widgets.DrawBoxSolid(row, NextOrderWash);
+            }
+            else if (wash == RowWash.Accent)
+            {
+                Color colour = ColourOf(accent);
+                Widgets.DrawBoxSolid(row, new Color(colour.r, colour.g, colour.b, WashAlpha));
             }
         }
 
@@ -358,9 +436,8 @@ namespace WorkbenchGroups.Patches
         /// just grouped ones, so there is no reason to withhold an indicator vanilla lacks
         /// entirely.
         /// </summary>
-        private static void DrawActiveMarker(Bill bill, Rect row, bool compact)
+        private static void DrawAccentEdge(Bill bill, Rect row, BillAccent accent)
         {
-            BillAccent accent = AccentFor(bill);
             if (accent == BillAccent.None || accent == BillAccent.Blocked)
             {
                 // Blocked draws nothing of ours in vanilla's tab: vanilla already paints a bill it
@@ -372,18 +449,9 @@ namespace WorkbenchGroups.Patches
 
             Color colour = ColourOf(accent);
 
-            // A wash plus a hard left edge, rather than a filled box: this draws after vanilla has
-            // already written the label and the buttons, so anything opaque would cover them.
-            //
-            // The wash is dropped for a compact host because Nice Bill Tab tints a row's whole
-            // background itself — there it is that tint we recolour, so a wash on top would say
-            // the same thing twice. It is also dropped for work at another bench, the weakest of
-            // the three claims, which should not shout as loudly as the bench in front of you.
-            if (!compact && accent != BillAccent.WorkedElsewhere)
-            {
-                Widgets.DrawBoxSolid(row, new Color(colour.r, colour.g, colour.b, WashAlpha));
-            }
-
+            // A hard left edge rather than a filled box: this draws after vanilla has already
+            // written the label and the buttons, so anything opaque would cover them. The fill,
+            // if any, was drawn by DrawWash before the marker's outline.
             Widgets.DrawBoxSolid(new Rect(row.x, row.y, EdgeBarWidth, row.height), colour);
 
             // Gated on hover, like vanilla's own paste button does in ITab_Bills.FillTab.

@@ -23,6 +23,22 @@ namespace WorkbenchGroups.Core
     }
 
     /// <summary>
+    /// Which translucent fill, if any, a row gets. At most one, which is the whole point of the
+    /// type: two 13% washes of different hues on one row mix into a third colour that means
+    /// neither of them.
+    /// </summary>
+    public enum RowWash
+    {
+        None,
+
+        /// <summary>The accent's own colour — green or blue.</summary>
+        Accent,
+
+        /// <summary>The "do this next" marker's red.</summary>
+        NextOrder,
+    }
+
+    /// <summary>
     /// Decides which of those a bill row gets.
     ///
     /// Vanilla never needed any of this: a bill belonged to one bench and the list was worked
@@ -69,6 +85,57 @@ namespace WorkbenchGroups.Core
             }
 
             return workedElsewhere ? BillAccent.WorkedElsewhere : BillAccent.None;
+        }
+
+        /// <summary>
+        /// Settles the one contested surface on a row: its fill.
+        ///
+        /// The "do this next" marker is not an accent and is deliberately not a member of
+        /// <see cref="BillAccent"/>. It answers "what did the player ask for", while every accent
+        /// answers "what is the colony doing", and a bill is routinely both at once — the marked
+        /// order sits at the head of the list, so it is usually also the blue "next up" row, and
+        /// often the green one being worked. Folding it into the precedence above would make one
+        /// of those facts disappear. So each keeps its own channel: the accent owns the left edge
+        /// bar, the marker owns the outline and the PRIORITY badge, and neither channel is shared.
+        ///
+        /// The fill is the one thing both used to draw. A red wash over a blue wash came out a
+        /// muddy violet on exactly the row the player most wants to read, so the fill goes to the
+        /// marker: it is the explicit instruction, and the accent loses nothing by it because its
+        /// edge bar still says the same thing.
+        ///
+        /// A compact host — Nice Bill Tab — gets no fill from us at all. It tints the row's
+        /// background itself, and there the accent recolours *that* tint rather than adding one;
+        /// a wash laid over it would say the same thing twice. That includes the marker, whose
+        /// outline and badge carry it without help.
+        ///
+        /// Work at another bench never gets a fill even in vanilla's tab: it is the weakest of the
+        /// claims and should not shout as loudly as the bench the player is standing at.
+        /// </summary>
+        public static RowWash WashFor(BillAccent accent, bool marked, bool compact)
+        {
+            if (compact)
+            {
+                return RowWash.None;
+            }
+
+            if (marked)
+            {
+                return RowWash.NextOrder;
+            }
+
+            return FillsRow(accent) ? RowWash.Accent : RowWash.None;
+        }
+
+        /// <summary>
+        /// Whether an accent is strong enough to colour a row's whole background — our wash in
+        /// vanilla's tab, or the recoloured stripes in Nice Bill Tab's, which are the same surface
+        /// in two hosts. Only the two claims about *this* bench qualify. Work at another bench
+        /// speaks through the edge bar alone: in Nice Bill Tab that is the only thing that tells it
+        /// apart from work here, since both would otherwise repaint the stripes the same green.
+        /// </summary>
+        public static bool FillsRow(BillAccent accent)
+        {
+            return accent == BillAccent.WorkedHere || accent == BillAccent.NextUp;
         }
     }
 }
