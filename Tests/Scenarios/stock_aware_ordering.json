@@ -84,6 +84,13 @@
     {"type": "WbgScanBench", "args": {}},
     {"type": "Probe", "args": {"probeName": "wbg_bill_order", "expectedValue": "123", "tolerance": "0"}},
 
+    {"comment": "A foreign drag (Nice Bill Tab's bare Bills.Remove/Insert, which no patch sees) under 'in order' + floor is the player re-authoring the order. The sort absorbs it before sorting, so the drag survives the next scan. Without the absorb, the sort's tiebreak is the old authored order and it puts the list back to 123.",
+     "type": "WbgMoveBillDirect", "args": {"slot": "1", "toIndex": "0"}},
+    {"type": "Probe", "args": {"probeName": "wbg_bill_order", "expectedValue": "213", "tolerance": "0"}},
+    {"type": "AdvanceTicks", "args": {"ticks": "61"}},
+    {"type": "WbgScanBench", "args": {}},
+    {"type": "Probe", "args": {"probeName": "wbg_bill_order", "expectedValue": "213", "tolerance": "0"}},
+
     {"comment": "'Do until you have X' clears its marker once stock reaches X, in a group that does not sort at all.",
      "type": "WbgSetOneEachFirst", "args": {"on": "false"}},
     {"type": "Probe", "args": {"probeName": "wbg_ordering_mode", "expectedValue": "0", "tolerance": "0"}},

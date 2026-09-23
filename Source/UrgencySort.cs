@@ -178,6 +178,13 @@ namespace WorkbenchGroups
                 return;
             }
 
+            // A drag in Nice Bill Tab's tab — or any mod's direct move — is the player re-authoring
+            // their order, and it has to reach the authored order before the sort, which uses that
+            // order as its tiebreak, lands on top of it. Otherwise a drag under "in order" with the
+            // floor on is silently undone by the next scan, and the one after would read our own
+            // sort as the foreign move and bake it into the authored order.
+            bool absorbed = RoundRobin.AbsorbExternalReorder(anchorComp, stack);
+
             Bill marked = NextOrder.Resolve(anchorComp);
             Dictionary<string, int> authored = AuthoredPositions(anchorComp);
 
@@ -194,18 +201,25 @@ namespace WorkbenchGroups
 
             // A sort that changes nothing is not applied, so a settled list is never mutated —
             // nothing watching the list sees a change that is not one.
-            if (UrgencyOrder.IsIdentity(order))
+            if (!UrgencyOrder.IsIdentity(order))
             {
-                return;
+                ApplyPermutation(bills, order);
             }
 
-            ApplyPermutation(bills, order);
+            // Record whenever the baseline is stale: after our own move, which the next divergence
+            // check must not read as a foreign one, and after an absorb, so the same foreign move
+            // is not absorbed again next time. Not on a quiet no-op, because recording also bumps
+            // OwnBillListMoves, which asks Nice Bill Tab to rebuild its cached list.
+            if (absorbed || !UrgencyOrder.IsIdentity(order))
+            {
+                RoundRobin.RecordLastKnownOrder(anchorComp, stack);
+            }
         }
 
         /// <summary>
-        /// The one place the sort writes the list. Kept to one call so anything that has to hear
-        /// about a deliberate reorder of ours — such as a check for *other* mods reordering the
-        /// list behind our back — has exactly one line to hook.
+        /// The one place the sort writes the list. The caller records the result as our own move
+        /// (<c>RoundRobin.RecordLastKnownOrder</c>) straight after, which is also what tells Nice
+        /// Bill Tab's cached copy of the list to refresh.
         /// </summary>
         private static void ApplyPermutation(List<Bill> bills, int[] order)
         {

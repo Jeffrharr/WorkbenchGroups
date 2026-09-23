@@ -97,18 +97,24 @@ namespace WorkbenchGroups
         /// <c>Patch_BillStack_Reorder</c> already makes, and for the same reason: the list they
         /// arranged is the list they were looking at.
         /// </summary>
-        private static void AbsorbExternalReorder(CompBillGroup anchorComp, BillStack stack)
+        /// <returns>True when a foreign reorder was found and absorbed.</returns>
+        /// <remarks>
+        /// Internal rather than private because the stock-aware sort in <see cref="UrgencySort"/>
+        /// has to run it too, before it sorts: once the sort lands on top of a foreign drag the two
+        /// are as indistinguishable as a rotation and a drag are here.
+        /// </remarks>
+        internal static bool AbsorbExternalReorder(CompBillGroup anchorComp, BillStack stack)
         {
             if (anchorComp == null || stack == null)
             {
-                return;
+                return false;
             }
 
             string[] current = LoadIdsOf(stack);
 
             if (!OrderDivergence.Diverged(anchorComp.LastKnownOrderIds.ToArray(), current))
             {
-                return;
+                return false;
             }
 
             anchorComp.CanonicalOrderIds.Clear();
@@ -120,6 +126,7 @@ namespace WorkbenchGroups
             // marker could keep its red row while sitting mid-list — and the next mode switch
             // would promote it back over the arrangement the player just made.
             NextOrder.ClearIfDisplacedFromHead(anchorComp);
+            return true;
         }
 
         /// <summary>
