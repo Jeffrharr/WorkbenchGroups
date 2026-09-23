@@ -47,7 +47,7 @@ ask, and each is widened from the anchor to the group rather than rewritten:
 
 | Site | Fix |
 |---|---|
-| `FinishUftJob` — resume target and haul-off (`WorkGiver_DoBill.cs:175,180`) | Transpiler: each `ldfld billStack; ldfld billGiver` pair becomes `call ResumeGiver(bill)`, which answers the bench being scanned when it shares the list and can make the recipe, else exactly vanilla's read. |
+| `FinishUftJob` — resume target and haul-off (`WorkGiver_DoBill.cs:175,180`) | Transpiler: each `ldfld billStack; ldfld billGiver` pair becomes `call ResumeGiver(bill)`, which answers the group bench the item is parked at when this pawn can use it, else the bench being scanned when it shares the list and can make the recipe, else exactly vanilla's read. |
 | `HaulAIUtility.PawnCanAutomaticallyHaulFast` — "leave a parked item alone" (`:94`) | Postfix that only turns yes into no: the item sits within any group bench's footprint+1, and its bill is next due. |
 | `UnfinishedThing.BoundWorkTable` — placement validator and selection line (`HaulAIUtility.cs:313`) | Postfix substituting the group bench the item is parked at. |
 
@@ -55,12 +55,25 @@ ask, and each is widened from the anchor to the group rather than rewritten:
 alone: linking requires identical recipe sets, so the anchor's def answers the same, and the
 worst it could ever do is unbind a worker.
 
-**Resume at the scanned bench, not the bench the item is parked on.** The scanned bench is the
-free one, and "the pawn goes to whichever bench is free" is the promise the mod makes for plain
-orders. If the item sits elsewhere the pawn carries it over — the same cost vanilla already pays
-when an item has been hauled to a stockpile. The scanned bench crosses into the private method as
-a static set by the `JobOnThing` prefix; the finalizer, not a postfix, clears it, so an exception
-mid-scan cannot leave a stale bench for an unrelated scan to redirect towards.
+**Resume where the item is parked, and move only when that bench is unusable.** The first
+version resumed at whichever bench was being scanned, on the reasoning that "the pawn goes to
+whichever bench is free" is what the mod promises for plain orders. That was replaced after
+review. A plain order has no half-made item to carry, but an unfinished one does. Resuming at
+the scanned bench carried the item across the room every time the pawn happened to scan a
+different bench first, even though the bench it was sitting at was free. The player's steer was
+"any bench if it works, but if the job is basically stalled, keep it to the same bench".
+
+So `UnfinishedItemPolicy.Choose` prefers the bench the item is parked at whenever this pawn can
+use it. "Use" means the same tests `JobOnThing` makes (not forbidden, not burning, powered and
+fuelled, reservable, interaction spot free), plus reachability. Only when the parked bench fails
+those does the job move to the scanned bench. The item is then carried there and parked at it,
+so the next resume prefers that bench. It cannot ping-pong, because the item moves only when the
+bench it sits at is unusable. An item parked nowhere (in a stockpile, being carried) has nowhere
+to stay, so it goes to the scanned bench.
+
+The scanned bench and the scanning pawn cross into the private method as statics set by the
+`JobOnThing` prefix. The finalizer, not a postfix, clears them, so an exception mid-scan cannot
+leave a stale bench for an unrelated scan to redirect towards.
 
 **No setting.** A toggle would leave bills already merged into a shared list while the redirect
 that makes them work is off — worse than either end of the switch.
@@ -78,9 +91,27 @@ offline before a player sees the fallback.
 **One bench at a time per order.** A `Bill_ProductionWithUft` holds one bound item and one bound
 worker, so an unfinished-item order occupies one bench of the group until it finishes. That is
 vanilla's rule per bill, not something sharing breaks; the group works its other orders in
-parallel. Under round robin such an order rotates to the tail when its job starts, so a
-half-finished item can wait while the other orders take their turns — correct, and the order is
-resumed when it comes round again.
+parallel.
+
+**Under round robin, such an order rotates when its unit is finished, not when its job starts.**
+Plain orders rotate at job start, because several pawns scanning together would otherwise all
+take the head bill. An unfinished-item order rotated at start sits at the tail while its item is
+half-made. When the maker is interrupted, vanilla's top-down loop starts whatever is now at the
+head instead of resuming. Meanwhile the item waits, bound to its maker (other pawns skip a bill
+with a bound item), until the order comes round again. Each resume also rotated the list again.
+Rotating on completion keeps the order at the head until its unit is done, so the maker resumes
+it first, and the count still drops only on completion, as vanilla does.
+
+The decision is `UnfinishedItemPolicy.RotatesAt`. The hook is a postfix on
+`Bill_Production.Notify_IterationCompleted`, which `Bill_ProductionWithUft` reaches through its
+`base` call (pinned by a Cecil test). The rotation itself is unchanged, so the "do this next"
+marker still refuses rotation the same way.
+
+The trade-off is accepted. Between a unit's job starting and its item being created (while
+ingredients are gathered) nothing is bound, so a second pawn at another bench can start the same
+order. The overshoot guard still caps that by the remaining count. If it happens, vanilla binds
+the order to whichever item is made last, and the first maker still finds its own item through
+vanilla's creator-bound search.
 
 ## Why a field swap rather than a patched property
 
@@ -125,6 +156,10 @@ on completion is correct with one worker and wrong with several: three pawns sca
 together all see the same bill at the head and all take it, rotating only afterwards —
 "three of A, then three of B". One `DoBill` job is exactly one iteration, so rotating at
 the start is equivalent for one worker and right for many.
+
+One exception: orders that leave an unfinished item behind rotate on completion. For those,
+one job is *not* one iteration, since an interrupted item takes several jobs to finish. See
+"Under round robin, such an order rotates when its unit is finished".
 
 The player's authored order is snapshotted by bill load ID when the mode goes on, and
 reprojected onto the live list when it goes off, so trying the mode does not permanently
@@ -476,9 +511,10 @@ own delete button, a few pixels to the right, genuinely does shrink the list mid
 - **A group shares vanilla's cap of 15 bills**, not 15 per bench. Refused at link time with
   the actual count rather than silently truncated.
 - **Message and dialog look-targets point at the anchor**, not the bench that finished.
-- **An unfinished-item order occupies one bench of its group until it finishes**, and under
-  round robin can wait at the tail half-made. Both follow from vanilla binding one item and one
-  worker to such a bill; see "Unfinished-item orders follow the pawn, not the list".
+- **An unfinished-item order occupies one bench of its group until it finishes**, because
+  vanilla binds one item and one worker to such a bill. Under round robin it rotates on completion
+  rather than at start, so for a moment two pawns can start it together. See "Unfinished-item
+  orders follow the pawn, not the list".
 - **A rebuilt bench is a new Thing** and silently leaves its group. Detected and shown on
   the inspect string only.
 - **A marked "do this next" order can sit red and idle.** It is at the head of the list, and
