@@ -56,7 +56,13 @@ namespace WorkbenchGroups
             // otherwise the two features undo each other once per job start: rotation sends the
             // marked bill to the tail and the marker puts it straight back at the head, so the
             // list visibly jumps twice per craft to end up exactly where it began.
-            if (!BillOrdering.TryPlanRotateToTail(
+            //
+            // Batched round robin gates all of this on a cadence: a bill with a batch of five
+            // stays at the head for five starts and rotates on the fifth. Counted first, so every
+            // start is counted whether or not it goes on to rotate; a batch of one — the default —
+            // completes on every start, which is the round robin that shipped before batches.
+            if (!anchorComp.CountStartAndCheckBatch(bill)
+                || !BillOrdering.TryPlanRotateToTail(
                     bills.Count,
                     index,
                     NextOrder.IsNextOrder(anchorComp, bill),

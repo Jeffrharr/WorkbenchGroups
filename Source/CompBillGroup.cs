@@ -86,6 +86,30 @@ namespace WorkbenchGroups
         /// </summary>
         private List<string> lastKnownOrderIds = new List<string>();
 
+        /// <summary>
+        /// Anchor only: batched round robin's per-bill batch size, keyed by bill load ID. A bill
+        /// with no entry has a batch of one, which is plain round robin.
+        ///
+        /// Group-scoped rather than on the <c>Bill</c> because the mod does not own <c>Bill</c> —
+        /// and because a batch size means nothing outside a round-robin group, so storing it with
+        /// the group is the correct home rather than a compromise. Keyed by load ID for the same
+        /// reason as <see cref="nextOrderBillId"/>: a reference into the deep-saved bill list
+        /// would come back null after every load.
+        /// </summary>
+        private Dictionary<string, int> batchSizes = new Dictionary<string, int>();
+
+        /// <summary>
+        /// Anchor only: how many times each bill has been started since it last rotated. Saved,
+        /// so "make five, then switch" does not restart its count of five on every reload.
+        /// </summary>
+        private Dictionary<string, int> batchStarts = new Dictionary<string, int>();
+
+        // Scribe_Collections needs somewhere to put a dictionary's keys and values while it loads.
+        private List<string> batchSizeKeys;
+        private List<int> batchSizeValues;
+        private List<string> batchStartKeys;
+        private List<int> batchStartValues;
+
         /// <summary>Set only between the save prefix and its finalizer.</summary>
         private BillStack sharedStackDuringSave;
 
@@ -159,6 +183,156 @@ namespace WorkbenchGroups
             {
                 lastKnownOrderIds = new List<string>();
             }
+
+            ExposeBatches();
+        }
+
+        /// <summary>
+        /// Saves the batch state, pruned to bills that still exist.
+        ///
+        /// Pruned on save rather than on delete because a bill leaves the list by more routes than
+        /// the delete button — another mod's code, a bill completing and being cleaned up, the
+        /// anchor handing the list over — and every one of them ends with the save seeing the list
+        /// as it really is. An entry for a bill that is gone is otherwise harmless, since nothing
+        /// can look it up, so the only cost of pruning late is a few bytes held until then.
+        /// </summary>
+        private void ExposeBatches()
+        {
+            if (Scribe.mode == LoadSaveMode.Saving)
+            {
+                PruneBatchState();
+            }
+
+            Scribe_Collections.Look(
+                ref batchSizes, "wbgBatchSizes", LookMode.Value, LookMode.Value,
+                ref batchSizeKeys, ref batchSizeValues);
+            Scribe_Collections.Look(
+                ref batchStarts, "wbgBatchStarts", LookMode.Value, LookMode.Value,
+                ref batchStartKeys, ref batchStartValues);
+
+            // A save written before batches existed has neither node and loads both as null.
+            if (Scribe.mode == LoadSaveMode.PostLoadInit)
+            {
+                batchSizes = batchSizes ?? new Dictionary<string, int>();
+                batchStarts = batchStarts ?? new Dictionary<string, int>();
+            }
+        }
+
+        private void PruneBatchState()
+        {
+            if (batchSizes.Count == 0 && batchStarts.Count == 0)
+            {
+                return;
+            }
+
+            HashSet<string> live = new HashSet<string>();
+            List<Bill> bills = Bench?.billStack?.Bills;
+            if (bills != null)
+            {
+                foreach (Bill bill in bills)
+                {
+                    live.Add(bill.GetUniqueLoadID());
+                }
+            }
+
+            RemoveKeysNotIn(batchSizes, live);
+            RemoveKeysNotIn(batchStarts, live);
+        }
+
+        private static void RemoveKeysNotIn(Dictionary<string, int> map, HashSet<string> keep)
+        {
+            List<string> stale = new List<string>();
+            foreach (string key in map.Keys)
+            {
+                if (!keep.Contains(key))
+                {
+                    stale.Add(key);
+                }
+            }
+
+            foreach (string key in stale)
+            {
+                map.Remove(key);
+            }
+        }
+
+        /// <summary>
+        /// This bill's batch size — one unless the player set one.
+        ///
+        /// Asked per visible row per frame while a round-robin group's tab is open, and
+        /// <c>GetUniqueLoadID</c> builds a fresh string on every call. The empty-map check first
+        /// means a group nobody has set a batch on — nearly all of them — never builds one.
+        /// </summary>
+        public int BatchSizeOf(Bill bill)
+        {
+            if (bill == null || batchSizes.Count == 0)
+            {
+                return 1;
+            }
+
+            return batchSizes.TryGetValue(bill.GetUniqueLoadID(), out int size)
+                ? Core.BillOrdering.ClampBatchSize(size)
+                : 1;
+        }
+
+        /// <summary>
+        /// Sets a bill's batch size. One removes the entry rather than storing it, so the default
+        /// stays the absence of state and the empty-map fast path above keeps applying.
+        ///
+        /// Also restarts the bill's running count: "make five" chosen part-way through a batch of
+        /// ten reads as "five from now", not "five counting the three already made".
+        /// </summary>
+        public void SetBatchSize(Bill bill, int size)
+        {
+            if (bill == null)
+            {
+                return;
+            }
+
+            string id = bill.GetUniqueLoadID();
+            int clamped = Core.BillOrdering.ClampBatchSize(size);
+            if (clamped == 1)
+            {
+                batchSizes.Remove(id);
+            }
+            else
+            {
+                batchSizes[id] = clamped;
+            }
+
+            batchStarts.Remove(id);
+        }
+
+        /// <summary>
+        /// Counts one start of <paramref name="bill"/> and says whether its batch is now complete,
+        /// i.e. whether round robin should rotate it. The arithmetic is
+        /// <see cref="Core.BillOrdering.CompletesBatch"/>; this only keeps the counter.
+        /// </summary>
+        public bool CountStartAndCheckBatch(Bill bill)
+        {
+            if (bill == null || batchSizes.Count == 0)
+            {
+                // Nothing batched anywhere in the group: every start completes a batch of one,
+                // and there is no counter worth keeping. Also skips the load-ID string on the
+                // path every job start in a round-robin group runs through.
+                return true;
+            }
+
+            string id = bill.GetUniqueLoadID();
+            int size = batchSizes.TryGetValue(id, out int stored) ? stored : 1;
+            batchStarts.TryGetValue(id, out int starts);
+
+            bool complete = Core.BillOrdering.CompletesBatch(starts, size, out int after);
+            if (after == 0)
+            {
+                batchStarts.Remove(id);
+            }
+            else
+            {
+                batchStarts[id] = after;
+            }
+
+            return complete;
         }
 
         public override void PostSpawnSetup(bool respawningAfterLoad)
@@ -256,6 +430,11 @@ namespace WorkbenchGroups
             ordering = previousAnchor.ordering;
             canonicalOrderIds = new List<string>(previousAnchor.canonicalOrderIds);
             lastKnownOrderIds = new List<string>(previousAnchor.lastKnownOrderIds);
+
+            // Batches are group state too. The bills they are keyed on are the same objects in
+            // the same list, so the load IDs still name them.
+            batchSizes = new Dictionary<string, int>(previousAnchor.batchSizes);
+            batchStarts = new Dictionary<string, int>(previousAnchor.batchStarts);
 
             // The marked order must move with the group, not with the bench. The shared stack
             // object itself is handed over intact, so the bill the ID names is still in the list
